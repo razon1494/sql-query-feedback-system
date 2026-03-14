@@ -81,16 +81,45 @@ nav{display:flex;gap:.25rem}
 
 /* TABS */
 .tabs{display:flex;border-bottom:2px solid var(--border);background:var(--surface);
-  padding:0 1.25rem;z-index:10;overflow-x:auto;flex-shrink:0;
-  box-shadow:0 1px 4px rgba(0,0,0,.04)}
-.tab{font-size:.78rem;font-family:var(--body);padding:.75rem 1.1rem;background:none;
+  padding:0 1rem;z-index:10;overflow-x:auto;flex-shrink:0;
+  box-shadow:0 1px 6px rgba(0,0,0,.06);align-items:stretch}
+.tab{font-size:.75rem;font-family:var(--body);padding:.7rem 1rem;background:none;
   border:none;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;
-  margin-bottom:-2px;transition:all .15s;white-space:nowrap;font-weight:500;
-  display:flex;align-items:center;gap:.35rem}
-.tab:hover{color:var(--text2);background:var(--surface2)}
-.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;background:rgba(37,99,235,.04)}
-.pulse{width:6px;height:6px;border-radius:50%;background:var(--bad);animation:pulse 1.5s infinite}
+  margin-bottom:-2px;transition:all .18s;white-space:nowrap;font-weight:500;
+  display:flex;align-items:center;gap:.4rem;position:relative}
+.tab:hover:not(.tab-locked){color:var(--text2);background:var(--surface2)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:700;
+  background:rgba(37,99,235,.05)}
+.tab-locked{cursor:not-allowed;opacity:.45}
+.tab-locked:hover{color:var(--text3);background:none}
+.tab-num{width:18px;height:18px;border-radius:50%;background:var(--surface3);
+  border:1px solid var(--border2);font-size:.6rem;font-weight:700;
+  display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  color:var(--text3);transition:all .18s}
+.tab.active .tab-num{background:var(--accent);border-color:var(--accent);color:#fff}
+.tab-done .tab-num{background:#dcfce7;border-color:#86efac;color:#15803d}
+.tab-divider{width:1px;background:var(--border);margin:.6rem 0;flex-shrink:0}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--good);
+  animation:pulse 1.5s infinite;margin-left:2px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+.nav-step-btn{display:flex;align-items:center;gap:.5rem;background:#fff;border:1.5px solid #bfdbfe;
+  border-radius:9px;padding:.45rem .75rem;cursor:pointer;transition:all .15s;text-align:left;
+  font-family:var(--body)}
+.nav-step-btn:hover{border-color:var(--accent);background:#eff4ff;transform:translateY(-1px);
+  box-shadow:0 3px 10px rgba(37,99,235,.12)}
+.ns-num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;
+  font-size:.62rem;font-weight:700;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0}
+.ns-info{display:flex;flex-direction:column;gap:1px}
+.ns-title{font-size:.73rem;font-weight:600;color:var(--text)}
+.ns-sub{font-size:.62rem;color:var(--text3)}
+.tab-hint{position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:#1a2035;color:#fff;font-size:.62rem;padding:4px 9px;border-radius:5px;
+  white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .15s;z-index:50}
+.tab-hint::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  border:4px solid transparent;border-top-color:#1a2035}
+.tab-locked:hover .tab-hint{opacity:1}
 
 /* PANELS */
 .panel{padding:1.35rem;flex:1;display:none;flex-direction:column;gap:1.1rem;overflow-y:auto;padding-bottom:2.5rem}
@@ -293,17 +322,67 @@ tr.match td{background:#f0fdf4}
   <aside class="sidebar" id="sidebar"></aside>
   <div class="main" id="content-main">
     <div class="tabs" id="tabs">
-      <button class="tab active" data-tab="editor" onclick="switchTab(this,'editor')">✏️ Editor</button>
-      <button class="tab" data-tab="feedback" onclick="switchTab(this,'feedback')">📋 Feedback <span class="pulse" id="feedback-pulse" style="display:none"></span></button>
-      <button class="tab" data-tab="ast" onclick="switchTab(this,'ast')">🌳 AST Diff</button>
-      <button class="tab" data-tab="provenance" onclick="switchTab(this,'provenance')">🔍 Provenance</button>
-      <button class="tab" data-tab="edge" onclick="switchTab(this,'edge')">⚡ Edge Cases</button>
-      <button class="tab" data-tab="schema" onclick="switchTab(this,'schema')">🗄️ Schema</button>
-      <button class="tab" data-tab="misc" onclick="switchTab(this,'misc')">🧠 Misconceptions</button>
+      <!-- Step 1: Always accessible -->
+      <button class="tab active" data-tab="editor" onclick="switchTab(this,'editor')">
+        <span class="tab-num">1</span> ✏️ Editor
+      </button>
+      <div class="tab-divider"></div>
+      <!-- Steps 2–6: Locked until analysis is run -->
+      <button class="tab tab-locked" id="tab-feedback" data-tab="feedback" onclick="handleLockedTab(this,'feedback')">
+        <span class="tab-num">2</span> 📋 Feedback
+        <span class="pulse" id="feedback-pulse" style="display:none"></span>
+        <span class="tab-hint">Run ▶ Analyze Query first</span>
+      </button>
+      <button class="tab tab-locked" id="tab-ast" data-tab="ast" onclick="handleLockedTab(this,'ast')">
+        <span class="tab-num">3</span> 🌳 AST Diff
+        <span class="tab-hint">Run ▶ Analyze Query first</span>
+      </button>
+      <button class="tab tab-locked" id="tab-provenance" data-tab="provenance" onclick="handleLockedTab(this,'provenance')">
+        <span class="tab-num">4</span> 🔍 Provenance
+        <span class="tab-hint">Run ▶ Analyze Query first</span>
+      </button>
+      <button class="tab tab-locked" id="tab-edge" data-tab="edge" onclick="handleLockedTab(this,'edge')">
+        <span class="tab-num">5</span> ⚡ Edge Cases
+        <span class="tab-hint">Run ▶ Analyze Query first</span>
+      </button>
+      <button class="tab tab-locked" id="tab-misc" data-tab="misc" onclick="handleLockedTab(this,'misc')">
+        <span class="tab-num">6</span> 🧠 Misconceptions
+        <span class="tab-hint">Run ▶ Analyze Query first</span>
+      </button>
+      <div class="tab-divider"></div>
+      <!-- Always accessible -->
+      <button class="tab" data-tab="schema" onclick="switchTab(this,'schema')">
+        🗄️ Schema
+      </button>
     </div>
 
     <!-- EDITOR -->
     <div class="panel active" id="panel-editor">
+      <!-- Workflow guide -->
+      <div id="workflow-banner" style="background:linear-gradient(135deg,#eff4ff,#f0faff);
+        border:1px solid #bfdbfe;border-radius:10px;padding:.65rem 1rem;
+        display:flex;align-items:center;gap:.6rem;font-size:.72rem;color:var(--text2);flex-wrap:wrap">
+        <span style="font-weight:700;color:var(--accent);white-space:nowrap">How to use:</span>
+        <span style="display:flex;align-items:center;gap:.3rem">
+          <span style="background:var(--accent);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">1</span>
+          Select a problem
+        </span>
+        <span style="color:var(--border2)">→</span>
+        <span style="display:flex;align-items:center;gap:.3rem">
+          <span style="background:var(--accent);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">2</span>
+          Write or load a student query
+        </span>
+        <span style="color:var(--border2)">→</span>
+        <span style="display:flex;align-items:center;gap:.3rem">
+          <span style="background:var(--accent);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">3</span>
+          Click <strong style="color:var(--accent)">▶ Analyze Query</strong>
+        </span>
+        <span style="color:var(--border2)">→</span>
+        <span style="display:flex;align-items:center;gap:.3rem">
+          <span style="background:var(--accent);color:#fff;border-radius:50%;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;flex-shrink:0">4</span>
+          Explore tabs 2–6 for detailed results
+        </span>
+      </div>
       <div class="info-box" id="prob-desc" style="background:#eff4ff;border-color:#bfdbfe"></div>
       <div class="q-row">
         <div class="q-box">
@@ -342,19 +421,86 @@ tr.match td{background:#f0fdf4}
           </div>
         </div>
       </div>
-      <!-- Quick results -->
+      <!-- Query Results + Next Steps -->
       <div id="quick-results" style="display:none">
-        <div class="sec">Query Results</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem">
-          <div>
-            <div style="font-size:.68rem;color:var(--text3);margin-bottom:.45rem;font-family:var(--mono);font-weight:600">BASE QUERY OUTPUT</div>
-            <div id="base-tbl"></div>
+
+        <!-- Results header with equivalence badge -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.7rem">
+          <div class="sec" style="margin-bottom:0;flex:1">Query Results</div>
+          <div id="equiv-badge" style="font-size:.72rem;padding:3px 12px;border-radius:20px;
+            font-weight:700;margin-left:1rem;flex-shrink:0"></div>
+        </div>
+
+        <!-- Side-by-side result tables -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:1rem">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+            <div style="display:flex;align-items:center;gap:.4rem;padding:.5rem .9rem;
+              background:var(--surface3);border-bottom:1px solid var(--border);font-size:.7rem;font-weight:700">
+              <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
+              Base Query Output
+              <span id="base-row-count" style="margin-left:auto;font-family:var(--mono);
+                font-size:.65rem;color:var(--text3);font-weight:400"></span>
+            </div>
+            <div id="base-tbl" style="padding:.1rem 0"></div>
           </div>
-          <div>
-            <div style="font-size:.68rem;color:var(--text3);margin-bottom:.45rem;font-family:var(--mono);font-weight:600">STUDENT QUERY OUTPUT</div>
-            <div id="stu-tbl"></div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+            <div style="display:flex;align-items:center;gap:.4rem;padding:.5rem .9rem;
+              background:var(--surface3);border-bottom:1px solid var(--border);font-size:.7rem;font-weight:700">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--info);flex-shrink:0"></span>
+              Student Query Output
+              <span id="stu-row-count" style="margin-left:auto;font-family:var(--mono);
+                font-size:.65rem;color:var(--text3);font-weight:400"></span>
+            </div>
+            <div id="stu-tbl" style="padding:.1rem 0"></div>
           </div>
         </div>
+
+        <!-- ★ NEXT STEPS NAVIGATION PROMPT ★ -->
+        <div id="next-steps" style="background:linear-gradient(135deg,#eff4ff 0%,#f0faff 100%);
+          border:1.5px solid #bfdbfe;border-radius:12px;padding:1rem 1.1rem">
+          <div style="font-size:.75rem;font-weight:700;color:var(--accent);margin-bottom:.65rem;
+            display:flex;align-items:center;gap:.4rem">
+            ✅ Analysis complete — explore your results:
+          </div>
+          <div style="display:flex;gap:.55rem;flex-wrap:wrap">
+            <button onclick="goToTab('feedback')" class="nav-step-btn" id="ns-feedback">
+              <span class="ns-num">2</span>
+              <span class="ns-info">
+                <span class="ns-title">📋 Feedback</span>
+                <span class="ns-sub">Score &amp; corrections</span>
+              </span>
+            </button>
+            <button onclick="goToTab('ast')" class="nav-step-btn">
+              <span class="ns-num">3</span>
+              <span class="ns-info">
+                <span class="ns-title">🌳 AST Diff</span>
+                <span class="ns-sub">Structure comparison</span>
+              </span>
+            </button>
+            <button onclick="goToTab('provenance')" class="nav-step-btn">
+              <span class="ns-num">4</span>
+              <span class="ns-info">
+                <span class="ns-title">🔍 Provenance</span>
+                <span class="ns-sub">Row-level trace</span>
+              </span>
+            </button>
+            <button onclick="goToTab('edge')" class="nav-step-btn">
+              <span class="ns-num">5</span>
+              <span class="ns-info">
+                <span class="ns-title">⚡ Edge Cases</span>
+                <span class="ns-sub">Robustness tests</span>
+              </span>
+            </button>
+            <button onclick="goToTab('misc')" class="nav-step-btn">
+              <span class="ns-num">6</span>
+              <span class="ns-info">
+                <span class="ns-title">🧠 Misconceptions</span>
+                <span class="ns-sub">Concept errors</span>
+              </span>
+            </button>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -416,7 +562,7 @@ tr.match td{background:#f0fdf4}
       SQL Query Feedback System
     </div>
     <div style="color:var(--text2);font-size:.86rem;margin-bottom:1.5rem;line-height:1.7">
-      A research prototype for automated SQL query evaluation &amp; feedback generation.<br>
+      A PhD-level research prototype for automated SQL query evaluation &amp; feedback generation.<br>
       Developed by <span style="color:var(--accent);font-weight:700">Mohammad Arifur Rahman</span><br>
       Submitted to <span style="color:var(--accent2);font-weight:700">Dr. Hasan Jamil</span>, Department of Computer Science, University of Idaho
     </div>
@@ -593,15 +739,20 @@ async function selectProblem(id) {
   document.getElementById('quick-results').style.display = 'none';
   document.getElementById('feedback-pulse').style.display = 'none';
   clearResults();
+  // Always jump to Editor tab when selecting a new problem
+  const editorTab = document.querySelector('.tab[data-tab="editor"]');
+  if (editorTab) switchTab(editorTab, 'editor');
 }
 
 function clearResults() {
   document.getElementById('fb-empty').style.display = 'flex';
   document.getElementById('fb-content').style.display = 'none';
+
   document.getElementById('ast-content').innerHTML = `<div class="empty"><div class="empty-icon">🌳</div><div class="empty-txt">Run analysis first.</div></div>`;
   document.getElementById('prov-content').innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-txt">Run analysis first.</div></div>`;
   document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">Run analysis first.</div></div>`;
   document.getElementById('misc-content').innerHTML = `<div class="empty"><div class="empty-icon">🧠</div><div class="empty-txt">Run analysis first.</div></div>`;
+  lockTabs();
 }
 
 function loadSample(type) {
@@ -629,6 +780,7 @@ async function runAnalysis() {
     }
   } catch(e) { alert('Server error: ' + e.message); }
   lbl.innerHTML = '▶ Analyze Query';
+  unlockTabs();
 }
 
 // ═══ RENDER ALL ═══
@@ -640,6 +792,7 @@ function renderAll(d) {
   renderProvenance(d.provenance);
   renderEdgeCases(d.edge_cases);
   renderMisconceptions(d.feedback.misconceptions);
+  // Stay on Editor tab — user sees results + navigation prompt
 }
 
 function renderScore(fb) {
@@ -657,8 +810,30 @@ function renderScore(fb) {
 
 function renderResults(exec, comp) {
   document.getElementById('quick-results').style.display = 'block';
+
+  // Tables
   document.getElementById('base-tbl').innerHTML = makeTable(exec.base.rows, exec.base.columns, []);
-  document.getElementById('stu-tbl').innerHTML = makeTable(exec.student.rows, exec.student.columns, comp.extra_rows||[]);
+  document.getElementById('stu-tbl').innerHTML  = makeTable(exec.student.rows, exec.student.columns, comp.extra_rows||[]);
+
+  // Row count labels
+  document.getElementById('base-row-count').textContent = exec.base.row_count + ' row(s)';
+  document.getElementById('stu-row-count').textContent  = exec.student.row_count + ' row(s)';
+
+  // Equivalence badge
+  const equiv = comp.are_equivalent;
+  const badge = document.getElementById('equiv-badge');
+  if (equiv) {
+    badge.textContent = '✓ Outputs Match';
+    badge.style.cssText = 'background:#dcfce7;color:#15803d;font-size:.72rem;padding:3px 12px;border-radius:20px;font-weight:700;margin-left:1rem;flex-shrink:0';
+  } else {
+    const extra   = (comp.extra_rows||[]).length;
+    const missing = (comp.missing_rows||[]).length;
+    let msg = '✗ Outputs Differ';
+    if (extra)   msg += `  +${extra} extra`;
+    if (missing) msg += `  −${missing} missing`;
+    badge.textContent = msg;
+    badge.style.cssText = 'background:#fee2e2;color:#b91c1c;font-size:.72rem;padding:3px 12px;border-radius:20px;font-weight:700;margin-left:1rem;flex-shrink:0';
+  }
 }
 
 function makeTable(rows, cols, extraRows) {
@@ -877,6 +1052,43 @@ function switchTab(el, tab) {
   el.classList.add('active');
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.getElementById('panel-'+tab).classList.add('active');
+}
+
+function goToTab(tab) {
+  const el = document.getElementById('tab-'+tab);
+  if (el && !el.classList.contains('tab-locked')) switchTab(el, tab);
+}
+
+function handleLockedTab(el, tab) {
+  if (el.classList.contains('tab-locked')) {
+    // Shake the Analyze button to guide user
+    const btn = document.querySelector('.btn-primary');
+    btn.style.animation = 'none';
+    btn.offsetHeight; // reflow
+    btn.style.animation = 'shake .4s ease';
+    return;
+  }
+  switchTab(el, tab);
+}
+
+function unlockTabs() {
+  ['feedback','ast','provenance','edge','misc'].forEach(id => {
+    const el = document.getElementById('tab-'+id);
+    if (el) {
+      el.classList.remove('tab-locked');
+      el.classList.add('tab-done');
+    }
+  });
+}
+
+function lockTabs() {
+  ['feedback','ast','provenance','edge','misc'].forEach(id => {
+    const el = document.getElementById('tab-'+id);
+    if (el) {
+      el.classList.add('tab-locked');
+      el.classList.remove('tab-done', 'active');
+    }
+  });
 }
 function switchView(v) {
   document.getElementById('main-view').style.display = v==='main'?'flex':'none';
