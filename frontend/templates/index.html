@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQL Feedback System — Mohammad Arifur Rahman | Dr. Hasan Jamil, University of Idaho</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f0f4f9;
+  --surface:#ffffff;
+  --surface2:#f7f9fc;
+  --surface3:#edf1f7;
+  --border:#dde3ee;
+  --border2:#c5cedd;
+  --accent:#2563eb;
+  --accent2:#0891b2;
+  --accent3:#dc2626;
+  --accent4:#d97706;
+  --text:#1a2035;
+  --text2:#4a5470;
+  --text3:#8a93b0;
+  --good:#16a34a;
+  --bad:#dc2626;
+  --warn:#d97706;
+  --info:#0891b2;
+  --mono:'JetBrains Mono',monospace;
+  --display:'Syne',sans-serif;
+  --body:'Inter',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--body);min-height:100vh;overflow-x:hidden}
+
+/* HEADER */
+header{background:var(--surface);border-bottom:2px solid var(--border);padding:0 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;height:58px;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(37,99,235,.07)}
+.logo{font-family:var(--display);font-weight:800;font-size:1.05rem;letter-spacing:-.02em;
+  display:flex;align-items:center;gap:.55rem;color:var(--text)}
+.logo-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+  border-radius:6px;display:flex;align-items:center;justify-content:center;
+  font-size:.65rem;font-weight:800;color:#fff;letter-spacing:0}
+.badge{font-size:.6rem;font-family:var(--mono);background:rgba(37,99,235,.08);
+  color:var(--accent);border:1px solid rgba(37,99,235,.2);padding:2px 8px;border-radius:20px;
+  font-weight:600}
+nav{display:flex;gap:.25rem}
+.nav-btn{background:none;border:none;cursor:pointer;font-family:var(--body);font-size:.8rem;
+  color:var(--text2);padding:6px 14px;border-radius:7px;transition:all .15s;font-weight:500}
+.nav-btn:hover{color:var(--text);background:var(--surface3)}
+.nav-btn.active{color:var(--accent);background:rgba(37,99,235,.09);font-weight:600}
+
+/* LAYOUT */
+.app{display:flex;height:calc(100vh - 58px)}
+
+/* SIDEBAR */
+.sidebar{width:272px;min-width:272px;background:var(--surface);
+  border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto}
+.sb-section{padding:.95rem 1.1rem}
+.sb-label{font-size:.6rem;font-weight:700;letter-spacing:.1em;color:var(--text3);
+  text-transform:uppercase;margin-bottom:.7rem}
+.prob-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:.7rem .9rem;cursor:pointer;margin-bottom:.45rem;transition:all .15s;position:relative;
+  box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.prob-card:hover{border-color:var(--accent);background:#eff4ff;box-shadow:0 2px 8px rgba(37,99,235,.08)}
+.prob-card.active{border-color:var(--accent);background:#eff4ff;box-shadow:0 2px 8px rgba(37,99,235,.1)}
+.prob-card.active::before{content:'';position:absolute;left:0;top:0;bottom:0;
+  width:3px;background:var(--accent);border-radius:8px 0 0 8px}
+.prob-title{font-size:.78rem;font-weight:600;margin-bottom:.25rem;color:var(--text)}
+.prob-meta{font-size:.67rem;color:var(--text3);display:flex;gap:.4rem;align-items:center}
+.diff{font-size:.58rem;padding:2px 6px;border-radius:4px;font-weight:700}
+.d-easy{background:#dcfce7;color:#15803d}
+.d-med{background:#fef3c7;color:#92400e}
+.d-hard{background:#fee2e2;color:#b91c1c}
+.divider{height:1px;background:var(--border);margin:.4rem 0}
+.info-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:.7rem .9rem;font-size:.72rem;color:var(--text2);line-height:1.6;margin-bottom:.45rem}
+.info-box strong{color:var(--text)}
+
+/* MAIN */
+.main{flex:1;overflow-y:hidden;display:flex;flex-direction:column;height:100%}
+
+/* TABS */
+.tabs{display:flex;border-bottom:2px solid var(--border);background:var(--surface);
+  padding:0 1.25rem;z-index:10;overflow-x:auto;flex-shrink:0;
+  box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.tab{font-size:.78rem;font-family:var(--body);padding:.75rem 1.1rem;background:none;
+  border:none;cursor:pointer;color:var(--text3);border-bottom:2px solid transparent;
+  margin-bottom:-2px;transition:all .15s;white-space:nowrap;font-weight:500;
+  display:flex;align-items:center;gap:.35rem}
+.tab:hover{color:var(--text2);background:var(--surface2)}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600;background:rgba(37,99,235,.04)}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--bad);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* PANELS */
+.panel{padding:1.35rem;flex:1;display:none;flex-direction:column;gap:1.1rem;overflow-y:auto;padding-bottom:2.5rem}
+.panel.active{display:flex;min-height:0}
+
+/* SECTION TITLES */
+.sec{font-family:var(--display);font-size:.78rem;font-weight:700;color:var(--text2);
+  margin-bottom:.7rem;display:flex;align-items:center;gap:.5rem;
+  text-transform:uppercase;letter-spacing:.06em}
+.sec::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* QUERY BOXES */
+.q-row{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+.q-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.q-header{display:flex;align-items:center;justify-content:space-between;
+  padding:.55rem .9rem;background:var(--surface3);border-bottom:1px solid var(--border);
+  font-size:.72rem}
+.q-title{font-weight:600;display:flex;align-items:center;gap:.4rem;color:var(--text)}
+.dot{width:8px;height:8px;border-radius:50%}
+.dg{background:#22c55e} .db{background:var(--info)} .dr{background:var(--bad)}
+textarea{width:100%;background:#fff;border:none;outline:none;resize:none;
+  font-family:var(--mono);font-size:.77rem;color:var(--text);line-height:1.75;
+  padding:.9rem;min-height:155px}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.52rem 1.25rem;
+  border-radius:8px;font-size:.8rem;font-weight:600;cursor:pointer;
+  border:none;transition:all .15s;font-family:var(--body)}
+.btn-primary{background:var(--accent);color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.25)}
+.btn-primary:hover{background:#1d4ed8;transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.3)}
+.btn-secondary{background:var(--surface);color:var(--text);border:1px solid var(--border);
+  box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent);background:#eff4ff}
+.btn-sm{padding:.32rem .85rem;font-size:.71rem}
+.run-row{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap}
+
+/* SCORE */
+.score-wrap{margin-left:auto;display:flex;align-items:center;gap:.7rem;
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:.4rem .9rem;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.score-ring{width:50px;height:50px;position:relative}
+.score-ring svg{transform:rotate(-90deg)}
+.s-track{fill:none;stroke:var(--surface3);stroke-width:4}
+.s-fill{fill:none;stroke:var(--accent);stroke-width:4;stroke-linecap:round;
+  transition:stroke-dasharray .8s ease}
+.s-val{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-family:var(--mono);font-size:.68rem;font-weight:700;color:var(--accent)}
+
+/* GRADE BARS */
+.grade-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:1.1rem;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.g-row{display:flex;align-items:center;gap:.9rem;margin-bottom:.65rem}
+.g-label{font-size:.73rem;color:var(--text2);width:115px;flex-shrink:0;font-weight:500}
+.g-wrap{flex:1;background:var(--surface3);border-radius:100px;height:8px;overflow:hidden}
+.g-bar{height:100%;border-radius:100px;transition:width .8s cubic-bezier(.22,1,.36,1)}
+.g-val{font-family:var(--mono);font-size:.7rem;color:var(--text);width:40px;text-align:right;font-weight:600}
+
+/* FEEDBACK CARDS */
+.fb-grid{display:flex;flex-direction:column;gap:.7rem}
+.fb-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:.9rem 1.05rem;border-left:4px solid transparent;
+  box-shadow:0 1px 4px rgba(0,0,0,.04);animation:slideIn .3s ease forwards}
+@keyframes slideIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.fb-card.error{border-left-color:var(--bad);background:#fff8f8}
+.fb-card.warning{border-left-color:var(--warn);background:#fffbf0}
+.fb-card.success{border-left-color:var(--good);background:#f0fdf4}
+.fb-card.info{border-left-color:var(--info);background:#f0faff}
+.fb-head{display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem}
+.fb-icon{font-size:.95rem}
+.fb-title{font-size:.79rem;font-weight:600;color:var(--text)}
+.fb-body{font-size:.74rem;color:var(--text2);line-height:1.65}
+.fb-code{background:var(--surface3);border:1px solid var(--border);border-radius:6px;
+  padding:.55rem .75rem;font-family:var(--mono);font-size:.69rem;color:#1e40af;
+  margin-top:.5rem;overflow-x:auto;white-space:pre;line-height:1.65}
+.fb-ref{font-size:.65rem;color:var(--text3);margin-top:.3rem;font-style:italic}
+
+/* RESULT TABLE */
+.tbl-wrap{overflow-x:auto;border-radius:9px;border:1px solid var(--border);
+  box-shadow:0 1px 4px rgba(0,0,0,.04)}
+table{width:100%;border-collapse:collapse;font-size:.75rem}
+th{background:var(--surface3);color:var(--text2);padding:.55rem .9rem;text-align:left;
+  font-weight:700;border-bottom:2px solid var(--border);font-family:var(--mono);
+  font-size:.68rem;letter-spacing:.04em}
+td{padding:.5rem .9rem;border-bottom:1px solid var(--border);color:var(--text);background:#fff}
+tr:last-child td{border-bottom:none}
+tr.extra td{background:#fff5f5}
+tr.match td{background:#f0fdf4}
+.tag{display:inline-block;font-size:.59rem;padding:1px 5px;border-radius:4px;
+  font-weight:700;margin-left:.3rem;vertical-align:middle}
+.t-extra{background:#fee2e2;color:#b91c1c}
+.t-match{background:#dcfce7;color:#15803d}
+
+/* AST */
+.ast-grid{display:grid;grid-template-columns:1fr 1fr;gap:.9rem}
+.ast-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:.9rem;font-family:var(--mono);font-size:.7rem;line-height:1.9;overflow-x:auto;
+  box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.ast-key{color:var(--accent)} .ast-val{color:var(--accent4)}
+.ast-diff{color:var(--bad);background:#fee2e2;border-radius:3px;padding:0 4px}
+.ast-ok{color:var(--good)}
+
+/* PROVENANCE */
+.prov-step{background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:.9rem;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.prov-title{font-size:.75rem;font-weight:700;margin-bottom:.5rem;color:var(--accent2)}
+.prov-formula{font-family:var(--mono);font-size:.65rem;color:var(--text2);
+  margin-bottom:.5rem;background:var(--surface3);padding:.3rem .65rem;border-radius:5px;
+  border:1px solid var(--border)}
+.prov-tuples{display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.5rem}
+.prov-tuple{background:var(--surface2);border:1px solid var(--border);
+  border-radius:5px;padding:.25rem .65rem;font-family:var(--mono);font-size:.67rem;color:var(--text)}
+.prov-tuple.div{border-color:#2563eb;color:#1d4ed8;background:#eff4ff}
+.prov-tuple.partial{border-color:var(--warn);color:#92400e;background:#fef3c7}
+.prov-tuple.missing{border-color:var(--bad);color:#b91c1c;background:#fee2e2}
+.prov-exp{font-size:.73rem;color:var(--text2);line-height:1.65;
+  border-left:3px solid var(--info);padding-left:.7rem;margin-top:.5rem;background:#f0faff;
+  padding:.5rem .7rem;border-radius:0 6px 6px 0}
+.div-compare{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-top:.5rem}
+
+/* EDGE CASES */
+.edge-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+.edge-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:.9rem;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.edge-title{font-size:.74rem;font-weight:700;margin-bottom:.45rem;color:var(--text)}
+.edge-r{display:flex;gap:.4rem;align-items:center;font-size:.7rem;
+  padding:.32rem .55rem;border-radius:5px;margin-bottom:.28rem;font-weight:500}
+.edge-r.pass{background:#dcfce7;color:#15803d}
+.edge-r.fail{background:#fee2e2;color:#b91c1c}
+.edge-desc{font-size:.67rem;color:var(--text3);line-height:1.5}
+
+/* MISCONCEPTIONS */
+.misc-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:.9rem;display:flex;gap:.85rem;
+  box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.misc-icon{font-size:1.2rem;flex-shrink:0}
+.misc-title{font-size:.78rem;font-weight:700;margin-bottom:.2rem;color:var(--text)}
+.misc-desc{font-size:.72rem;color:var(--text2);line-height:1.55}
+.misc-fix{font-size:.7rem;color:#1d4ed8;background:#eff4ff;border:1px solid #bfdbfe;
+  border-radius:5px;padding:.38rem .6rem;margin-top:.4rem;font-style:italic}
+
+/* SCHEMA */
+.schema-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+.schema-tbl{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.schema-name{background:var(--accent);padding:.55rem .9rem;font-family:var(--mono);
+  font-size:.75rem;font-weight:700;color:#fff}
+.schema-col{display:flex;justify-content:space-between;padding:.38rem .9rem;
+  border-bottom:1px solid var(--border);font-size:.7rem;background:#fff}
+.schema-col:last-child{border-bottom:none}
+.schema-cname{color:var(--text);font-family:var(--mono)}
+.schema-ctype{color:var(--text3);font-size:.63rem;background:var(--surface3);
+  padding:1px 5px;border-radius:3px;font-family:var(--mono)}
+.schema-pk{color:var(--accent4);font-size:.58rem;margin-right:.25rem;font-weight:700}
+
+/* ABOUT */
+#about-view{display:none;overflow-y:auto;padding:2rem;flex-direction:column;gap:1.25rem;height:100%}
+.about-inner{max-width:830px;margin:0 auto;width:100%}
+.pipe-row{display:flex;gap:.5rem;align-items:stretch;flex-wrap:wrap;justify-content:center}
+.pipe-box{background:var(--surface);border-radius:8px;padding:.65rem .95rem;
+  text-align:center;min-width:100px;font-family:var(--mono);font-size:.68rem;
+  box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.pipe-arrow{color:var(--text3);align-self:center;font-size:.9rem}
+
+/* SPINNER / EMPTY */
+.spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(37,99,235,.2);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:3rem;color:var(--text3);text-align:center;gap:.7rem}
+.empty-icon{font-size:2.5rem}
+.empty-txt{font-size:.8rem;line-height:1.6;max-width:260px}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:10px}
+
+@media(max-width:1100px){
+  .q-row,.ast-grid,.edge-grid,.schema-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">SQL</div>
+    SQL Feedback System
+    <span class="badge">Mohammad Arifur Rahman · Dr. Hasan Jamil, Univ. of Idaho</span>
+  </div>
+  <nav>
+    <button class="nav-btn active" onclick="switchView('main')">Feedback Engine</button>
+    <button class="nav-btn" onclick="switchView('about')">Architecture</button>
+  </nav>
+</header>
+
+<!-- MAIN VIEW -->
+<div class="app" id="main-view">
+  <aside class="sidebar" id="sidebar"></aside>
+  <div class="main" id="content-main">
+    <div class="tabs" id="tabs">
+      <button class="tab active" data-tab="editor" onclick="switchTab(this,'editor')">✏️ Editor</button>
+      <button class="tab" data-tab="feedback" onclick="switchTab(this,'feedback')">📋 Feedback <span class="pulse" id="feedback-pulse" style="display:none"></span></button>
+      <button class="tab" data-tab="ast" onclick="switchTab(this,'ast')">🌳 AST Diff</button>
+      <button class="tab" data-tab="provenance" onclick="switchTab(this,'provenance')">🔍 Provenance</button>
+      <button class="tab" data-tab="edge" onclick="switchTab(this,'edge')">⚡ Edge Cases</button>
+      <button class="tab" data-tab="schema" onclick="switchTab(this,'schema')">🗄️ Schema</button>
+      <button class="tab" data-tab="misc" onclick="switchTab(this,'misc')">🧠 Misconceptions</button>
+    </div>
+
+    <!-- EDITOR -->
+    <div class="panel active" id="panel-editor">
+      <div class="info-box" id="prob-desc" style="background:#eff4ff;border-color:#bfdbfe"></div>
+      <div class="q-row">
+        <div class="q-box">
+          <div class="q-header">
+            <div class="q-title"><span class="dot dg"></span>Base Query (Reference)</div>
+            <span style="font-size:.65rem;color:var(--text3)">Read-only</span>
+          </div>
+          <textarea id="base-q" readonly style="color:#1e40af;background:#f8faff"></textarea>
+        </div>
+        <div class="q-box">
+          <div class="q-header">
+            <div class="q-title"><span class="dot db"></span>Student Query</div>
+            <span style="font-size:.65rem;color:var(--text3)">Editable</span>
+          </div>
+          <textarea id="student-q" placeholder="Write your SQL query here…" style="background:#fff"></textarea>
+        </div>
+      </div>
+      <div class="run-row">
+        <button class="btn btn-primary" onclick="runAnalysis()">
+          <span id="run-lbl">▶ Analyze Query</span>
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="loadSample('wrong')">Load Wrong Answer</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadSample('correct')">Load Correct Answer</button>
+        <button class="btn btn-secondary btn-sm" onclick="loadSample('partial')">Load Partial Answer</button>
+        <div class="score-wrap" id="score-wrap" style="display:none">
+          <div>
+            <div style="font-size:.68rem;color:var(--text2);font-weight:500">Score</div>
+            <div style="font-family:var(--mono);font-size:1.15rem;font-weight:700" id="score-num">—</div>
+          </div>
+          <div class="score-ring">
+            <svg viewBox="0 0 50 50" width="50" height="50">
+              <circle class="s-track" cx="25" cy="25" r="21"/>
+              <circle class="s-fill" id="s-circle" cx="25" cy="25" r="21" stroke-dasharray="0 132"/>
+            </svg>
+            <div class="s-val" id="s-pct">0</div>
+          </div>
+        </div>
+      </div>
+      <!-- Quick results -->
+      <div id="quick-results" style="display:none">
+        <div class="sec">Query Results</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem">
+          <div>
+            <div style="font-size:.68rem;color:var(--text3);margin-bottom:.45rem;font-family:var(--mono);font-weight:600">BASE QUERY OUTPUT</div>
+            <div id="base-tbl"></div>
+          </div>
+          <div>
+            <div style="font-size:.68rem;color:var(--text3);margin-bottom:.45rem;font-family:var(--mono);font-weight:600">STUDENT QUERY OUTPUT</div>
+            <div id="stu-tbl"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FEEDBACK -->
+    <div class="panel" id="panel-feedback">
+      <div id="fb-empty" class="empty"><div class="empty-icon">📋</div><div class="empty-txt">Run analysis on the Editor tab to see detailed feedback.</div></div>
+      <div id="fb-content" style="display:none">
+        <div class="sec">Grading Breakdown</div>
+        <div class="grade-box" id="grade-box"></div>
+        <div class="sec">Feedback Items</div>
+        <div class="fb-grid" id="fb-cards"></div>
+      </div>
+    </div>
+
+    <!-- AST -->
+    <div class="panel" id="panel-ast">
+      <div class="sec">Abstract Syntax Tree Comparison</div>
+      <div id="ast-content"><div class="empty"><div class="empty-icon">🌳</div><div class="empty-txt">Run analysis first.</div></div></div>
+    </div>
+
+    <!-- PROVENANCE -->
+    <div class="panel" id="panel-provenance">
+      <div class="sec">Provenance Trace</div>
+      <div id="prov-content" style="display:flex;flex-direction:column;gap:.8rem">
+        <div class="empty"><div class="empty-icon">🔍</div><div class="empty-txt">Run analysis first.</div></div>
+      </div>
+    </div>
+
+    <!-- EDGE CASES -->
+    <div class="panel" id="panel-edge">
+      <div class="sec">Edge Case Analysis</div>
+      <div class="edge-grid" id="edge-content">
+        <div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">Run analysis first.</div></div>
+      </div>
+    </div>
+
+    <!-- SCHEMA -->
+    <div class="panel" id="panel-schema">
+      <div class="sec">Database Schema</div>
+      <div class="schema-grid" id="schema-content"></div>
+      <div class="sec" style="margin-top:.9rem">Sample Data</div>
+      <div id="data-content"></div>
+    </div>
+
+    <!-- MISCONCEPTIONS -->
+    <div class="panel" id="panel-misc">
+      <div class="sec">Detected Misconceptions</div>
+      <div id="misc-content" style="display:flex;flex-direction:column;gap:.7rem">
+        <div class="empty"><div class="empty-icon">🧠</div><div class="empty-txt">Run analysis first.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT VIEW -->
+<div class="app" id="about-view" style="overflow-y:auto">
+  <div class="about-inner">
+    <div style="font-family:var(--display);font-size:1.9rem;font-weight:800;margin-bottom:.4rem;color:var(--text)">
+      SQL Query Feedback System
+    </div>
+    <div style="color:var(--text2);font-size:.86rem;margin-bottom:1.5rem;line-height:1.7">
+      A research prototype for automated SQL query evaluation &amp; feedback generation.<br>
+      Developed by <span style="color:var(--accent);font-weight:700">Mohammad Arifur Rahman</span><br>
+      Submitted to <span style="color:var(--accent2);font-weight:700">Dr. Hasan Jamil</span>, Department of Computer Science, University of Idaho
+    </div>
+    <div class="info-box" style="padding:1.05rem;font-size:.8rem;line-height:1.8;margin-bottom:1.25rem;background:#eff4ff;border-color:#bfdbfe">
+      <strong style="font-size:.88rem;display:block;margin-bottom:.4rem">System Overview</strong>
+      Combines <strong>real SQL execution</strong> (SQLite), <strong>AST-based structural comparison</strong>,
+      <strong>provenance tracing</strong> (I-REX / RATest), <strong>edge-case testing</strong> (5 specialized databases),
+      and <strong>misconception detection</strong> to deliver rich, actionable feedback — with special focus on
+      <em>relational division</em>.
+    </div>
+    <div class="sec">Pipeline Architecture</div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.35rem;margin-bottom:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05)">
+      <div class="pipe-row">
+        <div class="pipe-box" style="border:2px solid var(--accent)"><div style="color:var(--accent);font-weight:700;margin-bottom:.2rem">① Parse</div><div style="color:var(--text3);font-size:.62rem">SQL → AST<br>Validate</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-box" style="border:2px solid var(--accent2)"><div style="color:var(--accent2);font-weight:700;margin-bottom:.2rem">② Diff</div><div style="color:var(--text3);font-size:.62rem">AST compare<br>Structure</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-box" style="border:2px solid var(--accent4)"><div style="color:var(--accent4);font-weight:700;margin-bottom:.2rem">③ Execute</div><div style="color:var(--text3);font-size:.62rem">Real SQLite<br>Results</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-box" style="border:2px solid #7c3aed"><div style="color:#7c3aed;font-weight:700;margin-bottom:.2rem">④ Provenance</div><div style="color:var(--text3);font-size:.62rem">Trace lineage<br>Divergence</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-box" style="border:2px solid var(--bad)"><div style="color:var(--bad);font-weight:700;margin-bottom:.2rem">⑤ Edge Cases</div><div style="color:var(--text3);font-size:.62rem">5 test DBs<br>Coverage</div></div>
+        <div class="pipe-arrow">→</div>
+        <div class="pipe-box" style="border:2px solid var(--good)"><div style="color:var(--good);font-weight:700;margin-bottom:.2rem">⑥ Feedback</div><div style="color:var(--text3);font-size:.62rem">Grade + Report<br>Suggest</div></div>
+      </div>
+    </div>
+    <div class="sec">vs. Related Work</div>
+    <div class="tbl-wrap" style="margin-bottom:1.25rem">
+      <table>
+        <thead><tr><th>Feature</th><th>RATest '19</th><th>I-REX '20</th><th>CaJaDE '22</th><th>This System</th></tr></thead>
+        <tbody>
+          <tr><td>Real SQL execution</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td></tr>
+          <tr><td>Small counterexamples</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
+          <tr><td>Division query focus</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
+          <tr><td>Edge case library</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
+          <tr><td>Graded feedback</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
+          <tr><td>Misconception detection</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
+          <tr><td>Context-augmented prov.</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--warn);font-weight:700">Planned</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══ STATE ═══
+let currentProblemId = null;
+let problems = [];
+let sampleAnswers = {
+  // ── Division ──
+  div_db_courses: {
+    wrong:   `SELECT s.StuID, s.Name\nFROM Students s\nWHERE s.StuID IN (\n    SELECT t.StuID FROM Takes t\n    WHERE t.CourseID IN (\n        SELECT c.CourseID FROM Courses c WHERE c."Group" = 'DB'\n    )\n);`,
+    correct: `SELECT s.StuID, s.Name\nFROM Students s\nWHERE NOT EXISTS (\n    SELECT c.CourseID FROM Courses c\n    WHERE c."Group" = 'DB'\n    AND c.CourseID NOT IN (\n        SELECT t.CourseID FROM Takes t WHERE t.StuID = s.StuID\n    )\n);`,
+    partial: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB'\nGROUP BY s.StuID, s.Name\nHAVING COUNT(DISTINCT t.CourseID) >= 2;`,
+  },
+  div_all_cs_courses: {
+    wrong:   `SELECT s.StuID, s.Name FROM Students s\nWHERE s.Major = 'CS'\nAND s.StuID IN (\n    SELECT t.StuID FROM Takes t\n    JOIN Courses c ON t.CourseID = c.CourseID\n    WHERE c."Group" = 'CS'\n);`,
+    correct: `SELECT s.StuID, s.Name\nFROM Students s\nWHERE s.Major = 'CS'\nAND NOT EXISTS (\n    SELECT c.CourseID FROM Courses c\n    WHERE c."Group" = 'CS'\n    AND c.CourseID NOT IN (\n        SELECT t.CourseID FROM Takes t WHERE t.StuID = s.StuID\n    )\n);`,
+    partial: `SELECT s.StuID, s.Name FROM Students s WHERE s.Major = 'CS';`,
+  },
+  div_instructor_all_db: {
+    wrong:   `SELECT i.InstID, i.Name FROM Instructors i\nWHERE i.InstID IN (\n    SELECT tc.InstID FROM Teaches tc\n    WHERE tc.CourseID IN (\n        SELECT c.CourseID FROM Courses c WHERE c."Group" = 'DB'\n    )\n);`,
+    correct: `SELECT i.InstID, i.Name\nFROM Instructors i\nWHERE NOT EXISTS (\n    SELECT c.CourseID FROM Courses c\n    WHERE c."Group" = 'DB'\n    AND c.CourseID NOT IN (\n        SELECT tc.CourseID FROM Teaches tc WHERE tc.InstID = i.InstID\n    )\n);`,
+    partial: `SELECT i.InstID, i.Name FROM Instructors i\nJOIN Teaches tc ON i.InstID = tc.InstID\nJOIN Courses c ON tc.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
+  },
+  // ── Join ──
+  join_cs360: {
+    wrong:   `SELECT StuID, Name FROM Students WHERE StuID = 'S1';`,
+    correct: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nWHERE t.CourseID = 'CS360';`,
+    partial: `SELECT StuID FROM Takes WHERE CourseID = 'CS360';`,
+  },
+  join_instructor_courses: {
+    wrong:   `SELECT i.Name, c.Title FROM Instructors i, Courses c;`,
+    correct: `SELECT i.Name AS InstructorName, c.Title AS CourseTitle\nFROM Instructors i\nJOIN Teaches tc ON i.InstID = tc.InstID\nJOIN Courses c ON tc.CourseID = c.CourseID\nORDER BY i.Name;`,
+    partial: `SELECT i.Name, tc.CourseID FROM Instructors i\nJOIN Teaches tc ON i.InstID = tc.InstID;`,
+  },
+  join_student_grades: {
+    wrong:   `SELECT s.Name, t.Grade FROM Students s, Takes t;`,
+    correct: `SELECT s.Name AS StudentName, c.Title AS CourseTitle, t.Grade\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nORDER BY s.Name, c.Title;`,
+    partial: `SELECT s.Name, t.CourseID, t.Grade\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID;`,
+  },
+  // ── Aggregation ──
+  agg_multi_course: {
+    wrong:   `SELECT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nWHERE t.CourseID IS NOT NULL;`,
+    correct: `SELECT s.StuID, s.Name, COUNT(t.CourseID) AS CourseCount\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nGROUP BY s.StuID, s.Name\nHAVING COUNT(t.CourseID) > 1;`,
+    partial: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nGROUP BY s.StuID, s.Name;`,
+  },
+  agg_avg_credits: {
+    wrong:   `SELECT s.StuID, s.Name, COUNT(t.CourseID) AS AvgCredits\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nGROUP BY s.StuID, s.Name;`,
+    correct: `SELECT s.StuID, s.Name, AVG(c.Credits) AS AvgCredits\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nGROUP BY s.StuID, s.Name;`,
+    partial: `SELECT s.StuID, s.Name, SUM(c.Credits) AS AvgCredits\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nGROUP BY s.StuID, s.Name;`,
+  },
+  // ── Set Operations ──
+  set_no_db: {
+    wrong:   `SELECT StuID, Name FROM Students\nWHERE StuID NOT IN (SELECT StuID FROM Takes);`,
+    correct: `SELECT StuID, Name FROM Students\nEXCEPT\nSELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
+    partial: `SELECT s.StuID, s.Name FROM Students s\nWHERE s.StuID NOT IN (\n    SELECT t.StuID FROM Takes t\n    JOIN Courses c ON t.CourseID = c.CourseID\n    WHERE c."Group" = 'DB'\n);`,
+  },
+  set_union_cs_db: {
+    wrong:   `SELECT DISTINCT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" IN ('CS','DB');`,
+    correct: `SELECT DISTINCT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'CS'\nUNION\nSELECT DISTINCT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
+    partial: `SELECT DISTINCT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'CS'\nUNION ALL\nSELECT DISTINCT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
+  },
+};
+
+// ═══ INIT ═══
+window.onload = async () => {
+  await loadProblems();
+  await loadSchema();
+};
+
+async function loadProblems() {
+  const res = await fetch('/api/problems');
+  const data = await res.json();
+  problems = data.data;
+  renderSidebar();
+  if (problems.length) selectProblem(problems[0].id);
+}
+
+function renderSidebar() {
+  const diffClass = {easy:'d-easy', medium:'d-med', hard:'d-hard'};
+  document.getElementById('sidebar').innerHTML = `
+    <div class="sb-section">
+      <div class="sb-label">Problem Set</div>
+      ${problems.map(p => `
+        <div class="prob-card" id="pc-${p.id}" onclick="selectProblem('${p.id}')">
+          <div class="prob-title">${p.title}</div>
+          <div class="prob-meta">
+            <span class="diff ${diffClass[p.difficulty]||'d-med'}">${p.difficulty}</span>
+            <span>${p.type}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <div class="divider"></div>
+    <div class="sb-section">
+      <div class="sb-label">Database</div>
+      <div class="info-box">
+        <strong>Students</strong>(StuID, Name, Age, Major)<br>
+        <strong>Courses</strong>(CourseID, Title, Credits, Group)<br>
+        <strong>Takes</strong>(StuID, CourseID, Grade)<br>
+        <strong>Instructors</strong>(InstID, Name, Dept)<br>
+        <strong>Teaches</strong>(InstID, CourseID)
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div class="sb-section">
+      <div class="sb-label">Reference Papers</div>
+      <div class="info-box" style="font-size:.65rem">
+        ① I-REX (VLDB 2020)<br>
+        ② RATest (SIGMOD 2019)<br>
+        ③ CaJaDE (VLDB 2022)<br>
+        ④ Conditional Instances (SIGMOD 2022)<br>
+        ⑤ DB Theory in Education (ICDT 2024)
+      </div>
+    </div>
+  `;
+}
+
+async function selectProblem(id) {
+  currentProblemId = id;
+  document.querySelectorAll('.prob-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById('pc-'+id);
+  if (card) card.classList.add('active');
+  const res = await fetch(`/api/problems/${id}`);
+  const data = await res.json();
+  const p = data.data;
+  document.getElementById('prob-desc').innerHTML =
+    `<strong>${p.title}</strong><br><span style="color:var(--text2)">${p.description}</span>
+     ${p.hint ? `<br><span style="color:var(--accent2);font-size:.7rem">💡 Hint: ${p.hint}</span>` : ''}`;
+  document.getElementById('base-q').value = p.base_query;
+  document.getElementById('student-q').value = '';
+  document.getElementById('score-wrap').style.display = 'none';
+  document.getElementById('quick-results').style.display = 'none';
+  document.getElementById('feedback-pulse').style.display = 'none';
+  clearResults();
+}
+
+function clearResults() {
+  document.getElementById('fb-empty').style.display = 'flex';
+  document.getElementById('fb-content').style.display = 'none';
+  document.getElementById('ast-content').innerHTML = `<div class="empty"><div class="empty-icon">🌳</div><div class="empty-txt">Run analysis first.</div></div>`;
+  document.getElementById('prov-content').innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-txt">Run analysis first.</div></div>`;
+  document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">Run analysis first.</div></div>`;
+  document.getElementById('misc-content').innerHTML = `<div class="empty"><div class="empty-icon">🧠</div><div class="empty-txt">Run analysis first.</div></div>`;
+}
+
+function loadSample(type) {
+  const samples = sampleAnswers[currentProblemId];
+  if (samples && samples[type]) document.getElementById('student-q').value = samples[type];
+}
+
+// ═══ ANALYSIS ═══
+async function runAnalysis() {
+  const sql = document.getElementById('student-q').value.trim();
+  if (!sql) { alert('Enter a student query first.'); return; }
+  const lbl = document.getElementById('run-lbl');
+  lbl.innerHTML = '<span class="spinner"></span> Analyzing…';
+  try {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({student_query: sql, problem_id: currentProblemId})
+    });
+    const data = await res.json();
+    if (data.status !== 'ok') alert('Error: ' + data.message);
+    else {
+      renderAll(data.data);
+      document.getElementById('feedback-pulse').style.display = 'block';
+    }
+  } catch(e) { alert('Server error: ' + e.message); }
+  lbl.innerHTML = '▶ Analyze Query';
+}
+
+// ═══ RENDER ALL ═══
+function renderAll(d) {
+  renderScore(d.feedback);
+  renderResults(d.execution, d.comparison);
+  renderFeedback(d.feedback);
+  renderAST(d.parsing);
+  renderProvenance(d.provenance);
+  renderEdgeCases(d.edge_cases);
+  renderMisconceptions(d.feedback.misconceptions);
+}
+
+function renderScore(fb) {
+  document.getElementById('score-wrap').style.display = 'flex';
+  const s = fb.total_score;
+  document.getElementById('score-num').textContent = `${s}/100`;
+  document.getElementById('s-pct').textContent = s;
+  const circ = 2 * Math.PI * 21;
+  document.getElementById('s-circle').setAttribute('stroke-dasharray', `${(s/100)*circ} ${circ-(s/100)*circ}`);
+  const color = s>=85?'var(--good)':s>=60?'var(--warn)':'var(--bad)';
+  document.getElementById('s-circle').style.stroke = color;
+  document.getElementById('s-pct').style.color = color;
+  document.getElementById('score-num').style.color = color;
+}
+
+function renderResults(exec, comp) {
+  document.getElementById('quick-results').style.display = 'block';
+  document.getElementById('base-tbl').innerHTML = makeTable(exec.base.rows, exec.base.columns, []);
+  document.getElementById('stu-tbl').innerHTML = makeTable(exec.student.rows, exec.student.columns, comp.extra_rows||[]);
+}
+
+function makeTable(rows, cols, extraRows) {
+  if (!rows || !rows.length) return `<div class="tbl-wrap"><div style="padding:.65rem .9rem;font-size:.73rem;color:var(--text3)">∅ Empty result</div></div>`;
+  const extraSet = new Set(extraRows.map(r => JSON.stringify(Object.values(r))));
+  return `<div class="tbl-wrap"><table>
+    <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r => {
+      const vals = cols.map(c => r[c]);
+      const isExtra = extraSet.has(JSON.stringify(vals));
+      return `<tr class="${isExtra?'extra':'match'}">
+        <td>${esc(vals[0])}${isExtra?'<span class="tag t-extra">extra</span>':'<span class="tag t-match">✓</span>'}</td>
+        ${vals.slice(1).map(v=>`<td>${esc(v)}</td>`).join('')}
+      </tr>`;
+    }).join('')}</tbody>
+  </table></div>`;
+}
+
+function renderFeedback(fb) {
+  document.getElementById('fb-empty').style.display = 'none';
+  document.getElementById('fb-content').style.display = 'block';
+  const colors = ['#16a34a','#0891b2','#2563eb','#d97706'];
+  document.getElementById('grade-box').innerHTML =
+    fb.components.map((c,i) => `
+      <div class="g-row">
+        <div class="g-label">${c.name}</div>
+        <div class="g-wrap"><div class="g-bar" style="width:${c.pct}%;background:${colors[i]}"></div></div>
+        <div class="g-val">${c.score}/${c.max_score}</div>
+      </div>
+    `).join('') +
+    `<div style="margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border);
+      display:flex;justify-content:space-between;align-items:center">
+      <span style="color:var(--text2);font-size:.78rem;font-weight:500">Total Score</span>
+      <span style="font-family:var(--mono);font-weight:700;font-size:1rem;color:${fb.total_score>=85?'var(--good)':fb.total_score>=60?'var(--warn)':'var(--bad)'}">${fb.total_score}/100 (${fb.grade_letter})</span>
+    </div>
+    <div style="font-size:.73rem;color:var(--text2);margin-top:.5rem;line-height:1.6;background:var(--surface2);padding:.5rem .7rem;border-radius:6px">${esc(fb.summary)}</div>`;
+
+  const levelIcon = {error:'❌',warning:'⚠️',success:'✅',info:'ℹ️'};
+  document.getElementById('fb-cards').innerHTML = fb.items.map((item,i) => `
+    <div class="fb-card ${item.level}" style="animation-delay:${i*.06}s">
+      <div class="fb-head">
+        <div class="fb-icon">${levelIcon[item.level]||'•'}</div>
+        <div class="fb-title">${esc(item.title)}</div>
+        <span style="margin-left:auto;font-size:.62rem;color:var(--text3);background:var(--surface3);padding:1px 6px;border-radius:4px">${item.category}</span>
+      </div>
+      <div class="fb-body">${item.body}</div>
+      ${item.suggestion?`<div class="fb-body" style="color:var(--accent);margin-top:.35rem;font-weight:500">💡 ${esc(item.suggestion)}</div>`:''}
+      ${item.code_snippet?`<div class="fb-code">${esc(item.code_snippet)}</div>`:''}
+      ${item.reference?`<div class="fb-ref">📚 ${esc(item.reference)}</div>`:''}
+    </div>
+  `).join('');
+}
+
+function renderAST(parsing) {
+  const diffs = parsing.diffs || [];
+  const diffPaths = new Set(diffs.map(d => d.path));
+  const base = parsing.base, stu = parsing.student;
+  function astRows(pq) {
+    const rows = [];
+    const mark = (path, val) => diffPaths.has(path)
+      ? `<span class="ast-diff">${esc(String(val||'—'))}</span>`
+      : `<span class="ast-ok">${esc(String(val||'—'))}</span>`;
+    rows.push(`<div><span class="ast-key">SELECT </span>${mark('SELECT.columns',(pq.select_cols||[]).join(', '))}</div>`);
+    rows.push(`<div><span class="ast-key">FROM   </span>${mark('FROM.tables',(pq.from_tables||[]).join(', '))}</div>`);
+    if (pq.where_clause) rows.push(`<div><span class="ast-key">WHERE  </span>${mark('WHERE.type',pq.where_type)}</div>`);
+    if (pq.group_by&&pq.group_by.length) rows.push(`<div><span class="ast-key">GROUP BY </span>${mark('GROUP_BY',pq.group_by.join(', '))}</div>`);
+    if (pq.having) rows.push(`<div><span class="ast-key">HAVING </span>${mark('HAVING',pq.having.slice(0,60))}</div>`);
+    rows.push(`<div><span class="ast-key">SUBQ_DEPTH </span>${mark('SUBQUERY.depth',pq.subquery_count)}</div>`);
+    return rows.join('');
+  }
+  document.getElementById('ast-content').innerHTML = `
+    <div class="ast-grid">
+      <div class="ast-box">
+        <div style="font-size:.67rem;color:var(--text3);margin-bottom:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Base Query AST</div>
+        ${astRows(base)}
+      </div>
+      <div class="ast-box">
+        <div style="font-size:.67rem;color:var(--text3);margin-bottom:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em">Student Query AST</div>
+        ${astRows(stu)}
+      </div>
+    </div>
+    ${diffs.length ? `
+      <div style="margin-top:.9rem">
+        <div class="sec">Structural Differences (${diffs.length})</div>
+        <div class="fb-grid">
+          ${diffs.map(d => `
+            <div class="fb-card error" style="padding:.65rem .9rem">
+              <div class="fb-head">
+                <div class="fb-icon">🔀</div>
+                <div class="fb-title">${esc(d.path)} — ${d.type}</div>
+              </div>
+              <div class="fb-body">
+                Base: <span style="color:var(--good);font-weight:600">${esc(String(d.base||'—'))}</span>
+                &nbsp;→&nbsp;
+                Student: <span style="color:var(--bad);font-weight:600">${esc(String(d.student||'—'))}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : `<div class="fb-card success" style="margin-top:.9rem;padding:.65rem .9rem">
+      <div class="fb-head"><div class="fb-icon">✅</div><div class="fb-title">No structural differences detected</div></div>
+    </div>`}
+  `;
+}
+
+function renderProvenance(prov) {
+  if (!prov || prov.error) {
+    document.getElementById('prov-content').innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-txt">${prov?.error||'Provenance unavailable.'}</div></div>`;
+    return;
+  }
+  let html = '';
+  for (const step of (prov.steps||[])) {
+    html += `<div class="prov-step">
+      <div class="prov-title">Step ${step.step}: ${esc(step.title)}</div>`;
+    if (step.formula) html += `<div class="prov-formula">${esc(step.formula)}</div>`;
+    html += `<div style="font-size:.73rem;color:var(--text2);margin-bottom:.45rem">${step.description||''}</div>`;
+    if (step.tuples) {
+      html += `<div class="prov-tuples">`;
+      for (const t of step.tuples) {
+        const cls = t.type==='divisor'?'div':t.type==='partial'?'partial':t.type==='missing'?'missing':'';
+        html += `<div class="prov-tuple ${cls}">${esc(t.label)}</div>`;
+      }
+      html += `</div>`;
+    }
+    if (step.base_tuples||step.student_tuples) {
+      html += `<div class="div-compare">`;
+      html += `<div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.3rem;font-weight:600">BASE (NOT EXISTS)</div><div class="prov-tuples">`;
+      for (const t of (step.base_tuples||[])) {
+        html += `<div class="prov-tuple ${t.type==='correct_include'?'div':''}">${esc(t.label)}</div>`;
+      }
+      html += `</div></div>`;
+      html += `<div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.3rem;font-weight:600">STUDENT (${esc(step.student_uses||'')})</div><div class="prov-tuples">`;
+      for (const t of (step.student_tuples||[])) {
+        const cls = t.type==='correct_include'?'div':t.type==='false_positive'?'partial':'';
+        html += `<div class="prov-tuple ${cls}">${esc(t.label)}</div>`;
+      }
+      html += `</div></div></div>`;
+    }
+    html += `</div>`;
+  }
+  for (const dp of (prov.divergence_points||[])) {
+    html += `<div class="fb-card error">
+      <div class="fb-head"><div class="fb-icon">🚨</div>
+        <div class="fb-title">${esc(dp.name)} (${esc(dp.student)}) — ${esc(dp.type)}</div></div>
+      <div class="fb-body">${esc(dp.explanation)}</div>
+      ${dp.missing_courses?.length?`<div class="fb-code">Missing DB courses: ${esc(JSON.stringify(dp.missing_courses))}</div>`:''}
+    </div>`;
+  }
+  if (prov.explanation) html += `<div class="prov-step"><div class="prov-exp">${esc(prov.explanation)}</div></div>`;
+  document.getElementById('prov-content').innerHTML = html || `<div class="fb-card success"><div class="fb-head"><div class="fb-icon">✅</div><div class="fb-title">No divergence — queries are equivalent</div></div></div>`;
+}
+
+function renderEdgeCases(cases) {
+  if (!cases||!cases.length) {
+    document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">No edge case data.</div></div>`;
+    return;
+  }
+  document.getElementById('edge-content').innerHTML = cases.map(e => `
+    <div class="edge-card">
+      <div class="edge-title">${esc(e.title)}</div>
+      <div class="edge-r pass">✓ Base: ${e.base_result.row_count} row(s)</div>
+      <div class="edge-r ${e.passed?'pass':'fail'}">${e.passed?'✓':'✗'} Student: ${e.student_result.row_count} row(s)</div>
+      <div class="edge-desc">${esc(e.description)}</div>
+      ${!e.passed?`<div class="edge-desc" style="color:var(--warn);margin-top:.3rem;font-weight:500">⚡ ${esc(e.tests)}</div>`:''}
+    </div>
+  `).join('');
+}
+
+function renderMisconceptions(misc) {
+  if (!misc||!misc.length) {
+    document.getElementById('misc-content').innerHTML = `<div class="misc-card"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
+    return;
+  }
+  document.getElementById('misc-content').innerHTML = misc.map(m => `
+    <div class="misc-card">
+      <div class="misc-icon">⚠️</div>
+      <div>
+        <div class="misc-title">${esc(m.title)}</div>
+        <div class="misc-desc">${esc(m.description)}</div>
+        <div class="misc-fix">💡 ${esc(m.fix)}</div>
+        ${m.reference?`<div class="fb-ref">📚 ${esc(m.reference)}</div>`:''}
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══ SCHEMA ═══
+async function loadSchema() {
+  const res = await fetch('/api/schema');
+  const data = await res.json();
+  if (data.status !== 'ok') return;
+  const tables = data.data;
+  document.getElementById('schema-content').innerHTML = Object.entries(tables).map(([name, tbl]) => `
+    <div class="schema-tbl">
+      <div class="schema-name">${esc(name)}</div>
+      ${tbl.columns.map(c => `
+        <div class="schema-col">
+          <span class="schema-cname">${c.pk?'<span class="schema-pk">PK</span>':''}${esc(c.name)}</span>
+          <span class="schema-ctype">${esc(c.type)}</span>
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+  document.getElementById('data-content').innerHTML = Object.entries(tables).map(([name, tbl]) => `
+    <div style="margin-bottom:.9rem">
+      <div class="sb-label">${esc(name)}</div>
+      ${makeTable(tbl.rows, tbl.col_names, [])}
+    </div>
+  `).join('');
+}
+
+// ═══ NAV ═══
+function switchTab(el, tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-'+tab).classList.add('active');
+}
+function switchView(v) {
+  document.getElementById('main-view').style.display = v==='main'?'flex':'none';
+  document.getElementById('about-view').style.display = v==='about'?'flex':'none';
+  document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active',(i===0&&v==='main')||(i===1&&v==='about')));
+}
+function esc(s) {
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+
+<div style="position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);
+  padding:5px 1.5rem;display:flex;justify-content:space-between;align-items:center;z-index:200;
+  font-size:.65rem;color:var(--text3)">
+  <span>📘 <strong style="color:var(--text2)">SQL Query Feedback System</strong> — PhD Research Prototype</span>
+  <span>Developed by <strong style="color:var(--accent)">Mohammad Arifur Rahman</strong> &nbsp;|&nbsp; Submitted to <strong style="color:var(--accent2)">Dr. Hasan Jamil</strong>, University of Idaho</span>
+</div>
+
+</body>
+</html>
