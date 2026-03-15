@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SQL Feedback System — Mohammad Arifur Rahman | Dr. Hasan Jamil, University of Idaho</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:#f0f4f9;
@@ -25,32 +25,32 @@
   --warn:#d97706;
   --info:#0891b2;
   --mono:'JetBrains Mono',monospace;
-  --display:'Syne',sans-serif;
+  --display:'DM Sans',sans-serif;
   --body:'Inter',sans-serif;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:var(--body);min-height:100vh;overflow-x:hidden}
 
 /* HEADER */
-header{background:var(--surface);border-bottom:2px solid var(--border);padding:0 1.5rem;
-  display:flex;align-items:center;justify-content:space-between;height:58px;
-  position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(37,99,235,.07)}
-.logo{font-family:var(--display);font-weight:800;font-size:1.05rem;letter-spacing:-.02em;
-  display:flex;align-items:center;gap:.55rem;color:var(--text)}
-.logo-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--accent2));
-  border-radius:6px;display:flex;align-items:center;justify-content:center;
-  font-size:.65rem;font-weight:800;color:#fff;letter-spacing:0}
-.badge{font-size:.6rem;font-family:var(--mono);background:rgba(37,99,235,.08);
-  color:var(--accent);border:1px solid rgba(37,99,235,.2);padding:2px 8px;border-radius:20px;
-  font-weight:600}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 1.5rem;
+  display:flex;align-items:center;justify-content:space-between;height:54px;
+  position:sticky;top:0;z-index:100;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.logo{font-family:var(--display);font-weight:600;font-size:.98rem;letter-spacing:-.01em;
+  display:flex;align-items:center;gap:.5rem;color:var(--text)}
+.logo-icon{width:26px;height:26px;background:var(--accent);
+  border-radius:5px;display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:700;color:#fff;letter-spacing:0}
+.badge{font-size:.6rem;font-family:var(--body);background:var(--surface3);
+  color:var(--text3);border:1px solid var(--border);padding:2px 10px;border-radius:20px;
+  font-weight:400;letter-spacing:.01em}
 nav{display:flex;gap:.25rem}
-.nav-btn{background:none;border:none;cursor:pointer;font-family:var(--body);font-size:.8rem;
-  color:var(--text2);padding:6px 14px;border-radius:7px;transition:all .15s;font-weight:500}
+.nav-btn{background:none;border:none;cursor:pointer;font-family:var(--body);font-size:.77rem;
+  color:var(--text3);padding:5px 12px;border-radius:6px;transition:all .15s;font-weight:400}
 .nav-btn:hover{color:var(--text);background:var(--surface3)}
-.nav-btn.active{color:var(--accent);background:rgba(37,99,235,.09);font-weight:600}
+.nav-btn.active{color:var(--accent);background:rgba(37,99,235,.07);font-weight:600}
 
 /* LAYOUT */
-.app{display:flex;height:calc(100vh - 58px)}
+.app{display:flex;height:calc(100vh - 54px)}
 
 /* SIDEBAR */
 .sidebar{width:272px;min-width:272px;background:var(--surface);
@@ -103,6 +103,20 @@ nav{display:flex;gap:.25rem}
   animation:pulse 1.5s infinite;margin-left:2px}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-5px)}40%,80%{transform:translateX(5px)}}
+/* Provenance filter tags */
+.prov-tag{display:inline-flex;align-items:center;gap:.3rem;padding:.28rem .7rem;
+  border-radius:20px;font-size:.71rem;font-weight:600;cursor:pointer;
+  border:1.5px solid var(--border);background:var(--surface);color:var(--text2);
+  transition:all .18s;font-family:var(--body);white-space:nowrap;user-select:none}
+.prov-tag:hover{border-color:var(--accent);color:var(--accent);background:#eff4ff;
+  transform:translateY(-1px);box-shadow:0 2px 6px rgba(37,99,235,.12)}
+.prov-tag.active{border-color:var(--accent);background:var(--accent);color:#fff;
+  box-shadow:0 2px 6px rgba(37,99,235,.25)}
+.prov-tag.active:hover{background:#1d4ed8;border-color:#1d4ed8}
+.prov-tag-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+/* Highlight animation on provenance tuples */
+.prov-tuple{transition:opacity .2s ease,transform .2s ease,box-shadow .2s ease}
+.prov-tuple.highlighted{box-shadow:0 0 0 2px var(--accent);transform:scale(1.04)}
 .nav-step-btn{display:flex;align-items:center;gap:.5rem;background:#fff;border:1.5px solid #bfdbfe;
   border-radius:9px;padding:.45rem .75rem;cursor:pointer;transition:all .15s;text-align:left;
   font-family:var(--body)}
@@ -143,7 +157,7 @@ nav{display:flex;gap:.25rem}
 .dg{background:#22c55e} .db{background:var(--info)} .dr{background:var(--bad)}
 textarea{width:100%;background:#fff;border:none;outline:none;resize:none;
   font-family:var(--mono);font-size:.77rem;color:var(--text);line-height:1.75;
-  padding:.9rem;min-height:155px}
+  padding:.9rem;min-height:210px}
 
 /* BUTTONS */
 .btn{display:inline-flex;align-items:center;gap:.4rem;padding:.52rem 1.25rem;
@@ -241,9 +255,9 @@ tr.match td{background:#f0fdf4}
 .div-compare{display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-top:.5rem}
 
 /* EDGE CASES */
-.edge-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+.edge-grid{display:flex;flex-wrap:wrap;gap:.8rem}
 .edge-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;
-  padding:.9rem;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  padding:.9rem;box-shadow:0 1px 4px rgba(0,0,0,.04);flex:1;min-width:calc(33% - .55rem);max-width:calc(33% - .55rem)}
 .edge-title{font-size:.74rem;font-weight:700;margin-bottom:.45rem;color:var(--text)}
 .edge-r{display:flex;gap:.4rem;align-items:center;font-size:.7rem;
   padding:.32rem .55rem;border-radius:5px;margin-bottom:.28rem;font-weight:500}
@@ -401,16 +415,18 @@ tr.match td{background:#f0fdf4}
         </div>
       </div>
       <div class="run-row">
-        <button class="btn btn-primary" onclick="runAnalysis()">
+        <button class="btn btn-primary" onclick="runAnalysis()" title="Shortcut: Ctrl+Enter">
           <span id="run-lbl">▶ Analyze Query</span>
         </button>
         <button class="btn btn-secondary btn-sm" onclick="loadSample('wrong')">Load Wrong Answer</button>
         <button class="btn btn-secondary btn-sm" onclick="loadSample('correct')">Load Correct Answer</button>
         <button class="btn btn-secondary btn-sm" onclick="loadSample('partial')">Load Partial Answer</button>
+        <div id="attempt-badge" style="display:none;font-size:.7rem;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-family:var(--mono)">Attempt <span id="attempt-num">1</span></div>
         <div class="score-wrap" id="score-wrap" style="display:none">
           <div>
             <div style="font-size:.68rem;color:var(--text2);font-weight:500">Score</div>
             <div style="font-family:var(--mono);font-size:1.15rem;font-weight:700" id="score-num">—</div>
+            <div id="score-label" style="font-size:.62rem;font-weight:600;margin-top:1px"></div>
           </div>
           <div class="score-ring">
             <svg viewBox="0 0 50 50" width="50" height="50">
@@ -467,7 +483,7 @@ tr.match td{background:#f0fdf4}
               <span class="ns-num">2</span>
               <span class="ns-info">
                 <span class="ns-title">📋 Feedback</span>
-                <span class="ns-sub">Score &amp; corrections</span>
+                <span class="ns-sub" id="ns-score-preview">Score &amp; corrections</span>
               </span>
             </button>
             <button onclick="goToTab('ast')" class="nav-step-btn">
@@ -512,6 +528,25 @@ tr.match td{background:#f0fdf4}
         <div class="grade-box" id="grade-box"></div>
         <div class="sec">Feedback Items</div>
         <div class="fb-grid" id="fb-cards"></div>
+
+        <!-- Reference solution collapsible -->
+        <div id="ref-solution-wrap" style="display:none">
+          <div class="sec">Reference Solution</div>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+            overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+            <button onclick="toggleRefSolution()" style="width:100%;display:flex;align-items:center;
+              justify-content:space-between;padding:.6rem 1rem;background:var(--surface3);
+              border:none;cursor:pointer;font-family:var(--body);font-size:.76rem;font-weight:600;
+              color:var(--text);border-bottom:1px solid var(--border)">
+              <span>👁 View Reference Query</span>
+              <span id="ref-arrow" style="color:var(--text3);font-size:.7rem">▼ Show</span>
+            </button>
+            <div id="ref-solution-body" style="display:none;padding:.85rem;
+              font-family:var(--mono);font-size:.75rem;color:#1e40af;
+              background:#f8faff;line-height:1.7;white-space:pre;overflow-x:auto"></div>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -523,7 +558,15 @@ tr.match td{background:#f0fdf4}
 
     <!-- PROVENANCE -->
     <div class="panel" id="panel-provenance">
-      <div class="sec">Provenance Trace</div>
+      <div style="margin-bottom:.9rem">
+        <div class="sec" style="margin-bottom:.6rem">Provenance Trace</div>
+        <!-- Student filter tags — shown after analysis -->
+        <div id="prov-filter-wrap" style="display:none;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span style="font-size:.68rem;color:var(--text3);font-weight:600;
+            text-transform:uppercase;letter-spacing:.07em;margin-right:.2rem">Filter:</span>
+          <div id="prov-tags" style="display:flex;gap:.4rem;flex-wrap:wrap"></div>
+        </div>
+      </div>
       <div id="prov-content" style="display:flex;flex-direction:column;gap:.8rem">
         <div class="empty"><div class="empty-icon">🔍</div><div class="empty-txt">Run analysis first.</div></div>
       </div>
@@ -532,8 +575,11 @@ tr.match td{background:#f0fdf4}
     <!-- EDGE CASES -->
     <div class="panel" id="panel-edge">
       <div class="sec">Edge Case Analysis</div>
-      <div class="edge-grid" id="edge-content">
-        <div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">Run analysis first.</div></div>
+      <div id="edge-summary"></div>
+      <div id="edge-wrapper" style="display:flex;flex-direction:column;gap:.8rem">
+        <div class="edge-grid" id="edge-content">
+          <div class="empty" style="flex:1 1 100%;text-align:center"><div class="empty-icon">⚡</div><div class="empty-txt">Run analysis first.</div></div>
+        </div>
       </div>
     </div>
 
@@ -611,6 +657,8 @@ tr.match td{background:#f0fdf4}
 // ═══ STATE ═══
 let currentProblemId = null;
 let problems = [];
+let attemptCount = 0;
+let completedProblems = new Set();
 let sampleAnswers = {
   // ── Division ──
   div_db_courses: {
@@ -739,6 +787,8 @@ async function selectProblem(id) {
   document.getElementById('quick-results').style.display = 'none';
   document.getElementById('feedback-pulse').style.display = 'none';
   clearResults();
+  attemptCount = 0;
+  updateAttemptBadge();
   // Always jump to Editor tab when selecting a new problem
   const editorTab = document.querySelector('.tab[data-tab="editor"]');
   if (editorTab) switchTab(editorTab, 'editor');
@@ -752,6 +802,7 @@ function clearResults() {
   document.getElementById('prov-content').innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><div class="empty-txt">Run analysis first.</div></div>`;
   document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">Run analysis first.</div></div>`;
   document.getElementById('misc-content').innerHTML = `<div class="empty"><div class="empty-icon">🧠</div><div class="empty-txt">Run analysis first.</div></div>`;
+  const es = document.getElementById('edge-summary'); if(es) es.innerHTML='';
   lockTabs();
 }
 
@@ -765,6 +816,8 @@ async function runAnalysis() {
   const sql = document.getElementById('student-q').value.trim();
   if (!sql) { alert('Enter a student query first.'); return; }
   const lbl = document.getElementById('run-lbl');
+  attemptCount++;
+  updateAttemptBadge();
   lbl.innerHTML = '<span class="spinner"></span> Analyzing…';
   try {
     const res = await fetch('/api/analyze', {
@@ -777,6 +830,22 @@ async function runAnalysis() {
     else {
       renderAll(data.data);
       document.getElementById('feedback-pulse').style.display = 'block';
+      completedProblems.add(currentProblemId);
+      markProblemComplete(currentProblemId);
+      // Update misc tab badge
+      const miscCount = (data.data.feedback.misconceptions||[]).length;
+      const miscTab = document.getElementById('tab-misc');
+      if (miscTab) {
+        const existing = miscTab.querySelector('.misc-count');
+        if (existing) existing.remove();
+        if (miscCount > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'misc-count';
+          badge.style.cssText = 'background:#fee2e2;color:#b91c1c;font-size:.58rem;font-weight:700;padding:1px 5px;border-radius:10px;margin-left:2px';
+          badge.textContent = miscCount;
+          miscTab.appendChild(badge);
+        }
+      }
     }
   } catch(e) { alert('Server error: ' + e.message); }
   lbl.innerHTML = '▶ Analyze Query';
@@ -792,13 +861,21 @@ function renderAll(d) {
   renderProvenance(d.provenance);
   renderEdgeCases(d.edge_cases);
   renderMisconceptions(d.feedback.misconceptions);
-  // Stay on Editor tab — user sees results + navigation prompt
+  // Update Feedback button preview with score
+  const preview = document.getElementById('ns-score-preview');
+  if (preview) {
+    const s = d.feedback.total_score;
+    const color = s>=85?'#15803d':s>=60?'#92400e':'#b91c1c';
+    const bg    = s>=85?'#dcfce7':s>=60?'#fef3c7':'#fee2e2';
+    preview.innerHTML = `Score: <strong style="color:${color};background:${bg};padding:1px 5px;border-radius:4px">${s}/100</strong>`;
+  }
 }
 
 function renderScore(fb) {
   document.getElementById('score-wrap').style.display = 'flex';
   const s = fb.total_score;
   document.getElementById('score-num').textContent = `${s}/100`;
+  document.getElementById('score-label').textContent = scoreLabel(s) + ' (' + fb.grade_letter + ')';
   document.getElementById('s-pct').textContent = s;
   const circ = 2 * Math.PI * 21;
   document.getElementById('s-circle').setAttribute('stroke-dasharray', `${(s/100)*circ} ${circ-(s/100)*circ}`);
@@ -806,6 +883,7 @@ function renderScore(fb) {
   document.getElementById('s-circle').style.stroke = color;
   document.getElementById('s-pct').style.color = color;
   document.getElementById('score-num').style.color = color;
+  document.getElementById('score-label').style.color = color;
 }
 
 function renderResults(exec, comp) {
@@ -867,9 +945,25 @@ function renderFeedback(fb) {
     `<div style="margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--border);
       display:flex;justify-content:space-between;align-items:center">
       <span style="color:var(--text2);font-size:.78rem;font-weight:500">Total Score</span>
-      <span style="font-family:var(--mono);font-weight:700;font-size:1rem;color:${fb.total_score>=85?'var(--good)':fb.total_score>=60?'var(--warn)':'var(--bad)'}">${fb.total_score}/100 (${fb.grade_letter})</span>
+      <span style="font-family:var(--mono);font-weight:700;font-size:1rem;color:${fb.total_score>=85?'var(--good)':fb.total_score>=60?'var(--warn)':'var(--bad)'}">${fb.total_score}/100 — ${scoreLabel(fb.total_score)} <span style="opacity:.6;font-size:.82rem">(${fb.grade_letter})</span></span>
     </div>
     <div style="font-size:.73rem;color:var(--text2);margin-top:.5rem;line-height:1.6;background:var(--surface2);padding:.5rem .7rem;border-radius:6px">${esc(fb.summary)}</div>`;
+
+  // Show reference solution for wrong answers
+  const refWrap = document.getElementById('ref-solution-wrap');
+  const refBody = document.getElementById('ref-solution-body');
+  if (!fb.is_alternate_correct && fb.total_score < 100) {
+    const prob = problems.find(p => p.id === currentProblemId);
+    const samples = sampleAnswers[currentProblemId];
+    if (samples && samples.correct) {
+      refBody.textContent = samples.correct;
+      refWrap.style.display = 'block';
+      document.getElementById('ref-solution-body').style.display = 'none';
+      document.getElementById('ref-arrow').textContent = '▼ Show';
+    }
+  } else {
+    refWrap.style.display = 'none';
+  }
 
   const levelIcon = {error:'❌',warning:'⚠️',success:'✅',info:'ℹ️'};
   document.getElementById('fb-cards').innerHTML = fb.items.map((item,i) => `
@@ -936,7 +1030,15 @@ function renderAST(parsing) {
       </div>
     ` : `<div class="fb-card success" style="margin-top:.9rem;padding:.65rem .9rem">
       <div class="fb-head"><div class="fb-icon">✅</div><div class="fb-title">No structural differences detected</div></div>
+      <div class="fb-body">Both queries share the same SELECT columns, FROM tables, WHERE pattern, and subquery depth.</div>
     </div>`}
+    <div style="margin-top:.85rem;background:var(--surface2);border:1px solid var(--border);
+      border-radius:8px;padding:.7rem 1rem;font-size:.72rem;color:var(--text3);line-height:1.7">
+      <span style="font-weight:600;color:var(--text2)">ℹ️ How to read this:</span>
+      Highlighted in <span style="color:var(--bad);font-weight:600;background:#fee2e2;padding:0 4px;border-radius:3px">red</span> = differs from reference.
+      Shown in <span style="color:var(--good);font-weight:600">green</span> = matches reference.
+      Clauses not shown are structurally identical between both queries.
+    </div>
   `;
 }
 
@@ -976,7 +1078,7 @@ function renderProvenance(prov) {
     html += `</div>`;
   }
   for (const dp of (prov.divergence_points||[])) {
-    html += `<div class="fb-card error">
+    html += `<div class="fb-card error" data-student-id="${esc(dp.student||'')}">
       <div class="fb-head"><div class="fb-icon">🚨</div>
         <div class="fb-title">${esc(dp.name)} (${esc(dp.student)}) — ${esc(dp.type)}</div></div>
       <div class="fb-body">${esc(dp.explanation)}</div>
@@ -985,6 +1087,8 @@ function renderProvenance(prov) {
   }
   if (prov.explanation) html += `<div class="prov-step"><div class="prov-exp">${esc(prov.explanation)}</div></div>`;
   document.getElementById('prov-content').innerHTML = html || `<div class="fb-card success"><div class="fb-head"><div class="fb-icon">✅</div><div class="fb-title">No divergence — queries are equivalent</div></div></div>`;
+  populateProvFilter(prov);
+  filterProvenance('all');
 }
 
 function renderEdgeCases(cases) {
@@ -992,6 +1096,18 @@ function renderEdgeCases(cases) {
     document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">No edge case data.</div></div>`;
     return;
   }
+  const passed = cases.filter(e=>e.passed).length;
+  const total  = cases.length;
+  const allPass = passed === total;
+  // Summary banner above grid
+  document.getElementById('edge-summary').innerHTML =
+    `<div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .9rem;border-radius:8px;
+      margin-bottom:.8rem;border:1px solid ${allPass?'#86efac':'#fecaca'};
+      background:${allPass?'#f0fdf4':'#fff5f5'}">
+      <span style="font-size:1.1rem">${allPass?'✅':'⚠️'}</span>
+      <span style="font-size:.78rem;font-weight:600;color:${allPass?'var(--good)':'var(--bad)'}">${passed}/${total} edge cases passed</span>
+      <span style="font-size:.72rem;color:var(--text3);margin-left:.25rem">${allPass?'Your query handles all boundary conditions correctly.':'Some boundary conditions reveal logic errors in your query.'}</span>
+    </div>`;
   document.getElementById('edge-content').innerHTML = cases.map(e => `
     <div class="edge-card">
       <div class="edge-title">${esc(e.title)}</div>
@@ -1018,7 +1134,140 @@ function renderMisconceptions(misc) {
         ${m.reference?`<div class="fb-ref">📚 ${esc(m.reference)}</div>`:''}
       </div>
     </div>
-  `).join('');
+  `).join('') +
+  `<div class="misc-card" style="background:#f0fdf4;border:1px solid #86efac">
+    <div class="misc-icon">✅</div>
+    <div>
+      <div class="misc-title" style="color:var(--good)">No further misconceptions detected</div>
+      <div class="misc-desc">All other SQL concepts in your query appear to be correctly understood.</div>
+    </div>
+  </div>`;
+}
+
+// ─── Provenance student filter ───────────────────────
+let _provData = null;
+
+let _activeProvTag = 'all';
+
+function filterProvenance(stuId) {
+  if (!_provData) return;
+  _activeProvTag = stuId;
+
+  // Update tag active states
+  document.querySelectorAll('.prov-tag').forEach(tag => {
+    const isActive = tag.dataset.stuid === stuId;
+    tag.classList.toggle('active', isActive);
+  });
+
+  // Filter tuples
+  document.querySelectorAll('.prov-tuple').forEach(t => {
+    const label = t.textContent;
+    if (stuId === 'all') {
+      t.style.opacity = '1';
+      t.style.transform = 'none';
+      t.classList.remove('highlighted');
+    } else {
+      const match = label.includes('(' + stuId + ')') || label.startsWith(stuId + ' (') || label.includes(stuId + ':');
+      t.style.opacity = match ? '1' : '0.2';
+      t.classList.toggle('highlighted', match);
+      if (!match) t.style.transform = 'none';
+    }
+  });
+
+  // Scroll to first divergence point for this student
+  if (stuId !== 'all') {
+    const cards = document.querySelectorAll('[data-student-id="' + stuId + '"]');
+    if (cards.length) cards[0].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+// Dot colours per student slot
+const STUDENT_COLORS = ['#2563eb','#0891b2','#16a34a','#d97706','#7c3aed','#dc2626'];
+
+function populateProvFilter(provTrace) {
+  _provData = provTrace;
+  _activeProvTag = 'all';
+  const wrap = document.getElementById('prov-filter-wrap');
+  const tags = document.getElementById('prov-tags');
+  if (!provTrace || !provTrace.divergence_points) { wrap.style.display = 'none'; return; }
+
+  // Collect all students present in the trace (from step 3 base tuples)
+  const students = new Map();
+  (provTrace.steps || []).forEach(step => {
+    (step.base_tuples || []).forEach(t => {
+      const m = t.label && t.label.match(/^(S\d+)\s*\(([^)]+)\)/);
+      if (m) students.set(m[1], m[2]);
+    });
+  });
+  // Add divergence-point students too
+  (provTrace.divergence_points || []).forEach(dp => {
+    if (dp.student && dp.name) students.set(dp.student, dp.name);
+  });
+
+  if (!students.size) { wrap.style.display = 'none'; return; }
+
+  // Mark divergence students so we can colour their tag red
+  const divergent = new Set(
+    (provTrace.divergence_points || []).map(dp => dp.student)
+  );
+
+  // Build tags
+  let i = 0;
+  let html = `<button class="prov-tag active" data-stuid="all" onclick="filterProvenance('all')">
+    <span class="prov-tag-dot" style="background:#6b7280"></span> All
+  </button>`;
+
+  students.forEach((name, id) => {
+    const color  = divergent.has(id) ? '#dc2626' : STUDENT_COLORS[i % STUDENT_COLORS.length];
+    const icon   = divergent.has(id) ? '⚠️ ' : '';
+    html += `<button class="prov-tag" data-stuid="${esc(id)}" onclick="filterProvenance('${esc(id)}')"
+      title="${esc(id)} — ${esc(name)}${divergent.has(id) ? ' (divergence point)' : ''}">
+      <span class="prov-tag-dot" style="background:${color}"></span>
+      ${icon}${esc(id)} <span style="font-weight:400;opacity:.7">${esc(name)}</span>
+    </button>`;
+    i++;
+  });
+
+  tags.innerHTML = html;
+  wrap.style.display = 'flex';
+}
+
+function scoreLabel(s) {
+  if (s >= 95) return 'Excellent';
+  if (s >= 85) return 'Good';
+  if (s >= 70) return 'Partial';
+  if (s >= 50) return 'Needs Revision';
+  return 'Incomplete';
+}
+
+function toggleRefSolution() {
+  const body  = document.getElementById('ref-solution-body');
+  const arrow = document.getElementById('ref-arrow');
+  const open  = body.style.display !== 'none';
+  body.style.display  = open ? 'none' : 'block';
+  arrow.textContent   = open ? '▼ Show' : '▲ Hide';
+}
+
+function updateAttemptBadge() {
+  const badge = document.getElementById('attempt-badge');
+  const num   = document.getElementById('attempt-num');
+  if (attemptCount > 0) {
+    badge.style.display = 'block';
+    num.textContent = attemptCount;
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+function markProblemComplete(id) {
+  const card = document.getElementById('pc-'+id);
+  if (!card) return;
+  if (!card.querySelector('.prob-done')) {
+    const tick = document.createElement('span');
+    tick.className = 'prob-done';
+    tick.innerHTML = ' <span style="color:var(--good);font-size:.65rem;font-weight:700">✓</span>';
+    card.querySelector('.prob-title').appendChild(tick);
+  }
 }
 
 // ═══ SCHEMA ═══
@@ -1095,6 +1344,14 @@ function switchView(v) {
   document.getElementById('about-view').style.display = v==='about'?'flex':'none';
   document.querySelectorAll('.nav-btn').forEach((b,i) => b.classList.toggle('active',(i===0&&v==='main')||(i===1&&v==='about')));
 }
+// ─── Keyboard shortcut: Ctrl+Enter = Analyze Query ───
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    e.preventDefault();
+    runAnalysis();
+  }
+});
+
 function esc(s) {
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
