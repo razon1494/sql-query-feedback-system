@@ -2,12 +2,22 @@
 Feedback Generator — Produces graded, structured feedback from query analysis.
 Combines: AST diff, result comparison, provenance trace, edge case results.
 
-Misconception taxonomy (M1-M10) grounded in:
-  - Miedema, Aivaloglou & Fletcher (ICER 2021)
-  - Miedema, Aivaloglou & Fletcher (ACM TOCE 2022)
-  - Taipalus, Siponen & Vartiainen (ACM TOCE 2018)
-  - Brass & Goldberg (JSS 2006)
-  - Miao, Roy & Yang (SIGMOD 2019 / VLDB 2020)
+v2: Problem-type-aware misconception detection aligned with the 10-type
+taxonomy (M1-M10) + NULL handling.
+
+Taxonomy coverage
+-----------------
+  M1  MISSING_WHERE              — missing filter predicate
+  M2  IN_vs_EXISTS               — IN used where EXISTS expected
+  M3  NOT_IN_vs_NOT_EXISTS       — NOT IN used where NOT EXISTS expected
+  M4  WRONG_JOIN_TYPE            — INNER vs OUTER mismatch
+  M5  CARTESIAN_PRODUCT          — multiple tables without join condition
+  M6  MISSING_GROUP_BY           — aggregate in SELECT without GROUP BY
+  M7  HAVING_vs_WHERE            — post-aggregation filter in wrong clause
+  M8  IN_FOR_DIVISION            — IN used for relational division
+  M9  CORRELATED_SCOPE           — subquery missing correlated reference
+  M10 WRONG_SET_OP               — wrong set operator (UNION/INTERSECT/EXCEPT)
+  +   NULL_EQUALITY              — `= NULL` instead of `IS NULL`
 """
 import re
 from dataclasses import dataclass, field
@@ -15,9 +25,9 @@ from typing import List, Dict, Optional, Any
 from backend.sql_parser import ParsedQuery, ASTDiff, compare_queries, queries_structurally_equal
 
 
-# ======================================================================
+# ══════════════════════════════════════════════════════════════════════
 #  GRADING WEIGHTS
-# ======================================================================
+# ══════════════════════════════════════════════════════════════════════
 
 WEIGHTS = {
     "syntax":     20,
@@ -26,6 +36,10 @@ WEIGHTS = {
     "edge_cases": 10,
 }
 
+
+# ══════════════════════════════════════════════════════════════════════
+#  DATA CLASSES
+# ══════════════════════════════════════════════════════════════════════
 
 @dataclass
 class GradeComponent:
@@ -45,8 +59,8 @@ class GradeComponent:
 
 @dataclass
 class FeedbackItem:
-    level: str
-    category: str
+    level: str        # error | warning | info | success
+    category: str     # SYNTAX | LOGIC | RESULT | EDGE_CASE | MISCONCEPTION | PROVENANCE
     title: str
     body: str
     suggestion: Optional[str] = None
@@ -74,6 +88,7 @@ class FeedbackReport:
     components: List[GradeComponent] = field(default_factory=list)
     items: List[FeedbackItem] = field(default_factory=list)
     misconceptions: List[Dict] = field(default_factory=list)
+    raw_misconceptions: List[Dict] = field(default_factory=list)  # pre-filter, for research eval
     summary: str = ""
 
     def to_dict(self):
@@ -85,189 +100,559 @@ class FeedbackReport:
             "components": [c.to_dict() for c in self.components],
             "items": [i.to_dict() for i in self.items],
             "misconceptions": self.misconceptions,
+            "raw_misconceptions": self.raw_misconceptions,
             "summary": self.summary,
         }
 
 
-# ======================================================================
-#  MISCONCEPTION LIBRARY  (M1 - M10)
-# ======================================================================
+# ══════════════════════════════════════════════════════════════════════
+#  MISCONCEPTION LIBRARY
+# ══════════════════════════════════════════════════════════════════════
 
 MISCONCEPTION_PATTERNS = {
-
-    "MISSING_WHERE": {
-        "id": "M1",
-        "title": "Missing or Incomplete WHERE Condition",
-        "description": (
-            "The query omits a required filter predicate, causing it to return "
-            "too many rows — often the entire table."
-        ),
-        "fix": (
-            "Add the missing WHERE condition matching the problem requirements."
-        ),
-        "reference": "Brass & Goldberg (2006) JSS; Taipalus et al. (2018) TOCE LOG-4"
-    },
-
-    "IN_VS_EXISTS": {
-        "id": "M2",
-        "title": "IN vs EXISTS Confusion",
-        "description": (
-            "The query uses IN where EXISTS (or vice versa) is required. "
-            "IN tests membership in a fixed list. EXISTS evaluates a correlated "
-            "subquery per outer row. They are not interchangeable."
-        ),
-        "fix": (
-            "Use EXISTS when the subquery references the outer query. "
-            "Use IN for non-correlated membership tests."
-        ),
-        "reference": "Miedema et al. (ICER 2021) -- generalization-based misconception"
-    },
-
-    "NOT_IN_VS_NOT_EXISTS": {
-        "id": "M3",
-        "title": "NOT IN vs NOT EXISTS Confusion (NULL Safety)",
-        "description": (
-            "NOT IN silently returns zero rows when the subquery contains NULLs "
-            "because SQL three-valued logic returns UNKNOWN, not FALSE. "
-            "NOT EXISTS handles NULLs correctly."
-        ),
-        "fix": "Replace NOT IN with NOT EXISTS for NULL-safe negation.",
-        "reference": "Miedema et al. (ICER 2021) -- language-based misconception"
-    },
-
-    "WRONG_JOIN_TYPE": {
-        "id": "M4",
-        "title": "Wrong JOIN Type (INNER vs OUTER)",
-        "description": (
-            "The query uses the wrong JOIN type. INNER JOIN discards unmatched rows. "
-            "LEFT/RIGHT OUTER JOIN preserves them with NULLs. "
-            "Using the wrong type silently changes the result set."
-        ),
-        "fix": (
-            "Check whether unmatched rows must be preserved (LEFT JOIN) "
-            "or only matched rows are needed (INNER JOIN)."
-        ),
-        "reference": "Miedema et al. (ICER 2021) -- incomplete mental model of JOIN"
-    },
-
-    "CARTESIAN_PRODUCT": {
-        "id": "M5",
-        "title": "Missing Join Condition (Implicit Cartesian Product)",
-        "description": (
-            "Multiple tables appear in FROM without a linking condition, "
-            "producing a Cartesian product: every row paired with every other row."
-        ),
-        "fix": "Add a JOIN or WHERE condition linking the tables on their related keys.",
-        "reference": "Brass & Goldberg (2006) JSS Error 20; Taipalus et al. (2018) TOCE SEM-3"
-    },
-
-    "MISSING_GROUP_BY": {
-        "id": "M6",
-        "title": "Missing GROUP BY Clause",
-        "description": (
-            "An aggregate function is used without GROUP BY, collapsing all rows "
-            "into one result instead of computing per-group values."
-        ),
-        "fix": "Add GROUP BY listing all non-aggregated columns in the SELECT list.",
-        "reference": "Miedema et al. (ICER 2021) -- primary aggregation error; Taipalus et al. (2018) SYN-5"
-    },
-
-    "MISSING_HAVING": {
-        "id": "M7",
-        "title": "HAVING vs WHERE Confusion -- Missing HAVING",
-        "description": (
-            "The query uses GROUP BY but lacks the HAVING clause needed to filter "
-            "groups by an aggregate condition. All groups are returned without filtering."
-        ),
-        "fix": "Add HAVING to filter groups after aggregation. Example: HAVING COUNT(t.CourseID) > 1",
-        "reference": "Miedema et al. (TOCE 2022) -- HAVING vs WHERE confusion"
-    },
-
-    "HARDCODED_THRESHOLD": {
-        "id": "M7",
-        "title": "Hardcoded Threshold in HAVING",
-        "description": (
-            "A literal number in HAVING (e.g., HAVING COUNT(*) >= 2) makes the query "
-            "brittle. If the data changes, the query silently breaks."
-        ),
-        "fix": (
-            "Replace the literal with a subquery. "
-            "Example: HAVING COUNT(DISTINCT t.CourseID) = "
-            "(SELECT COUNT(*) FROM Courses WHERE \"Group\" = 'DB')"
-        ),
-        "reference": "Taipalus et al. (2018) TOCE LOG-4"
-    },
-
+    # ── M8: Division-specific ───────────────────────────────────────
     "IN_FOR_DIVISION": {
-        "id": "M8",
-        "title": "IN-FOR-DIVISION: Using IN instead of NOT EXISTS",
+        "title": "Using IN (∃) Instead of NOT EXISTS (∀) for Division",
         "description": (
-            "IN tests existential membership (at least one match). "
-            "Relational division requires universal quantification (all must match). "
-            "Using IN includes students who took only some required courses."
+            "The IN operator tests for existential membership: it returns TRUE if at least one "
+            "matching row exists. Relational division requires universal quantification: every "
+            "element of the divisor set must be matched. Using IN gives partial matches (∃) "
+            "instead of complete coverage (∀)."
         ),
         "fix": (
-            "Use the NOT EXISTS double-negation pattern:\n"
-            "WHERE NOT EXISTS (\n"
-            "  SELECT CourseID FROM Courses WHERE Group='DB'\n"
-            "  AND CourseID NOT IN (\n"
-            "    SELECT CourseID FROM Takes WHERE StuID = s.StuID\n"
-            "  )\n"
-            ")"
+            "Use the double-negation NOT EXISTS pattern:\n"
+            "WHERE NOT EXISTS (SELECT … FROM Divisor d WHERE d.x NOT IN (SELECT … FROM Dividend WHERE …))\n"
+            "Read this as: 'no required element is missing from the covering set.'"
         ),
-        "reference": "Miao et al. (SIGMOD 2019) RATest; Miao et al. (VLDB 2020) I-Rex"
+        "reference": "Codd (1972) — Relational Completeness; Miao et al. (2019) RATest §3"
     },
-
     "MISSING_NOT_EXISTS": {
-        "id": "M8",
         "title": "Missing NOT EXISTS for Universal Quantification",
         "description": (
-            "The query does not implement 'for all' logic. "
-            "SQL has no FORALL quantifier -- division requires NOT EXISTS (... NOT IN ...)."
+            "The query does not implement the 'for all' logic required by relational division. "
+            "SQL does not have a FORALL quantifier, so division must be expressed via double negation."
         ),
         "fix": "Restructure using NOT EXISTS containing a subquery with NOT IN.",
-        "reference": "Miao et al. (SIGMOD 2019) RATest; Miao et al. (VLDB 2020) I-Rex"
+        "reference": "Date (2003) — SQL and Relational Theory, Chapter 9"
+    },
+    "MISSING_HAVING": {
+        "title": "GROUP BY Without HAVING (Aggregation Error)",
+        "description": (
+            "GROUP BY was used to group rows, but the HAVING clause that filters groups "
+            "by aggregate condition is missing. Without HAVING, every group is returned."
+        ),
+        "fix": "Add a HAVING clause with the aggregate predicate (for example, HAVING COUNT(*) >= (SELECT COUNT(*) FROM Divisor)).",
+        "reference": None
+    },
+    "HARDCODED_THRESHOLD": {
+        "title": "Hardcoded Aggregate Threshold",
+        "description": (
+            "A literal numeric threshold was used in a HAVING or WHERE comparison (e.g. HAVING COUNT(*) >= 2). "
+            "For division-by-count queries this is brittle — the value breaks whenever the divisor set changes. "
+            "The correct formulation computes the threshold dynamically with a subquery."
+        ),
+        "fix": "Replace the literal with a scalar subquery, e.g. HAVING COUNT(DISTINCT t.CourseID) = (SELECT COUNT(*) FROM Courses WHERE \"Group\"='DB').",
+        "reference": None
     },
 
+    # ── M4 & JOIN-related ───────────────────────────────────────────
+    "WRONG_JOIN_TYPE": {
+        "title": "Incorrect JOIN Type",
+        "description": (
+            "The join type differs from the reference (for example, LEFT JOIN where INNER JOIN is expected). "
+            "LEFT/RIGHT OUTER joins preserve unmatched rows and can introduce NULL-filled rows that "
+            "invalidate aggregates and filters designed for INNER join semantics."
+        ),
+        "fix": "Match the reference join type. For most row-preserving relational queries, INNER JOIN is the correct choice.",
+        "reference": None
+    },
+    "MISSING_JOIN": {
+        "title": "Missing JOIN — Required Table Not Included",
+        "description": (
+            "The reference query joins additional tables that are absent from your query. "
+            "Without the missing join, predicates over the absent table cannot be evaluated and "
+            "the result rows will be incomplete."
+        ),
+        "fix": "Add the missing JOIN (with an ON condition on the shared key) for every table referenced in the reference query that is not yet in yours.",
+        "reference": None
+    },
+
+    # ── M5 ──────────────────────────────────────────────────────────
+    "CARTESIAN_PRODUCT": {
+        "title": "Cartesian Product — Missing Join Condition",
+        "description": (
+            "Two or more tables appear in FROM without a connecting join condition (either a JOIN … ON … "
+            "or an equi-join predicate in WHERE). The result is the full cartesian product: every row of "
+            "table A paired with every row of table B."
+        ),
+        "fix": "Add a join condition linking the tables — either `A JOIN B ON A.key = B.key` or a WHERE predicate `A.key = B.key`.",
+        "reference": None
+    },
+
+    # ── M9 ──────────────────────────────────────────────────────────
     "MISSING_CORRELATED_REF": {
-        "id": "M9",
         "title": "Missing Correlated Reference in Subquery",
         "description": (
-            "The innermost subquery has no condition linking it to the outer query. "
-            "Without correlation, the subquery runs once for the whole database "
-            "instead of once per outer row."
+            "The subquery does not reference any column from the outer query, so it is evaluated once "
+            "(as a constant) rather than per outer row. Division and existential patterns require the "
+            "inner subquery to be correlated with the outer tuple."
         ),
-        "fix": "Add a correlated reference. Example: WHERE t.StuID = s.StuID",
-        "reference": "Miedema et al. (ICER 2021) -- subquery nesting errors; Miao et al. (VLDB 2020) I-Rex"
+        "fix": "Inside the innermost subquery, add an equality against the outer alias — e.g. WHERE t.StuID = s.StuID.",
+        "reference": "I-REX (Miao et al., VLDB 2020) — Block-level tracing of correlated subqueries"
     },
 
-    "WRONG_SET_OP": {
-        "id": "M10",
-        "title": "Set Operation Misuse (UNION / INTERSECT / EXCEPT)",
+    # ── M1 ──────────────────────────────────────────────────────────
+    "MISSING_WHERE": {
+        "title": "Missing WHERE Filter",
         "description": (
-            "The wrong set operation is used. "
-            "UNION = OR logic. INTERSECT = AND logic. EXCEPT = NOT logic."
+            "The reference query constrains rows with a WHERE predicate that is absent from your query. "
+            "Without it, every row of the source tables is returned instead of the intended subset."
         ),
-        "fix": (
-            "A OR B -> UNION | A AND B -> INTERSECT | A but NOT B -> EXCEPT"
+        "fix": "Add the WHERE clause that restricts the output to the rows the problem describes.",
+        "reference": None
+    },
+
+    # ── M2 ──────────────────────────────────────────────────────────
+    "IN_vs_EXISTS": {
+        "title": "IN Used Where EXISTS Is Expected",
+        "description": (
+            "An IN subquery was written where a correlated EXISTS subquery is expected. "
+            "IN is uncorrelated and tests membership in a pre-computed set; EXISTS is correlated and "
+            "evaluates the subquery per outer row. The two have different semantics under NULLs and "
+            "different efficiency characteristics."
         ),
-        "reference": "Miedema et al. (ICER 2021) -- language-based misconception on set semantics"
+        "fix": "Rewrite as WHERE EXISTS (SELECT 1 FROM … WHERE outer.key = inner.key AND …).",
+        "reference": None
+    },
+
+    # ── M3 ──────────────────────────────────────────────────────────
+    "NOT_IN_vs_NOT_EXISTS": {
+        "title": "NOT IN Used Where NOT EXISTS Is Expected",
+        "description": (
+            "NOT IN fails silently when the subquery returns any NULL: the predicate evaluates to "
+            "UNKNOWN for every outer row and the whole query returns the empty set. NOT EXISTS is "
+            "NULL-safe and is the preferred pattern for set difference and universal quantification."
+        ),
+        "fix": "Replace `WHERE x NOT IN (SELECT y FROM …)` with `WHERE NOT EXISTS (SELECT 1 FROM … WHERE y = x)`.",
+        "reference": "Date (2003) — SQL and Relational Theory, Chapter 6"
+    },
+
+    # ── M6 ──────────────────────────────────────────────────────────
+    "MISSING_GROUP_BY": {
+        "title": "Aggregate in SELECT Without GROUP BY",
+        "description": (
+            "The SELECT list mixes an aggregate function with non-aggregate columns, but no GROUP BY "
+            "clause is present. Under standard SQL semantics, every non-aggregate column in SELECT must "
+            "appear in GROUP BY."
+        ),
+        "fix": "Add GROUP BY listing every non-aggregate column from the SELECT clause.",
+        "reference": None
+    },
+
+    # ── M7 ──────────────────────────────────────────────────────────
+    "HAVING_vs_WHERE": {
+        "title": "HAVING vs WHERE Confusion",
+        "description": (
+            "The filter clause is placed in the wrong position. WHERE filters individual rows BEFORE "
+            "aggregation; HAVING filters entire groups AFTER aggregation. Aggregate predicates "
+            "(COUNT, SUM, AVG, …) must go in HAVING; row-level predicates should stay in WHERE."
+        ),
+        "fix": "Move aggregate comparisons to HAVING, and keep row-level filters in WHERE.",
+        "reference": None
+    },
+
+    # ── M10 ─────────────────────────────────────────────────────────
+    "WRONG_SET_OP": {
+        "title": "Incorrect Set Operator",
+        "description": (
+            "The reference query combines two result sets with a specific set operator "
+            "(UNION for 'in either', INTERSECT for 'in both', EXCEPT for 'in A but not B'). "
+            "Your query uses a different operator, so the combined set does not match the intended semantics."
+        ),
+        "fix": "Identify the intended semantics — union, intersection, or difference — and use the matching operator.",
+        "reference": None
+    },
+    "MISSING_SET_OP": {
+        "title": "Missing Set Operator",
+        "description": (
+            "The reference query uses a set operator (UNION / INTERSECT / EXCEPT) to combine two "
+            "SELECT blocks, but your query contains only a single SELECT block."
+        ),
+        "fix": "Write two SELECT queries, one per branch, and combine them with the appropriate set operator.",
+        "reference": None
+    },
+
+    # ── NULL handling ───────────────────────────────────────────────
+    "NULL_EQUALITY": {
+        "title": "Using '= NULL' Instead of IS NULL",
+        "description": (
+            "In SQL's three-valued logic, any comparison with NULL using `=` or `!=` evaluates to "
+            "UNKNOWN, and rows filtered by UNKNOWN are excluded. `column = NULL` therefore always "
+            "returns zero rows regardless of the data."
+        ),
+        "fix": "Use the IS NULL / IS NOT NULL predicates instead of = / != comparisons with NULL.",
+        "reference": None
     },
 }
 
-# Aggregate function regex used in multiple places
+
+# Penalty each misconception deducts from the 30-point Logic component.
+MISCONCEPTION_PENALTIES = {
+    "IN_FOR_DIVISION":       18,
+    "MISSING_NOT_EXISTS":    20,
+    "MISSING_HAVING":         8,
+    "HARDCODED_THRESHOLD":    6,
+    "WRONG_JOIN_TYPE":        8,
+    "MISSING_JOIN":          10,
+    "CARTESIAN_PRODUCT":     15,
+    "MISSING_CORRELATED_REF":12,
+    "MISSING_WHERE":         12,
+    "IN_vs_EXISTS":          15,
+    "NOT_IN_vs_NOT_EXISTS":   8,
+    "MISSING_GROUP_BY":      12,
+    "HAVING_vs_WHERE":       10,
+    "WRONG_SET_OP":          15,
+    "MISSING_SET_OP":        18,
+    "NULL_EQUALITY":         10,
+}
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  HELPER PREDICATES
+# ══════════════════════════════════════════════════════════════════════
+
 _AGG_RE = re.compile(r'\b(COUNT|SUM|AVG|MIN|MAX)\s*\(', re.IGNORECASE)
-_HARDCODE_RE = re.compile(
-    r'(COUNT|SUM|AVG|MIN|MAX)\s*\(.*?\)\s*(>=|<=|=|>|<)\s*\d+',
-    re.IGNORECASE)
-_JOIN_PRED_RE = re.compile(r'\w+\.\w+\s*=\s*\w+\.\w+', re.IGNORECASE)
+_HARDCODED_RE = re.compile(
+    r'\b(COUNT|SUM|AVG|MIN|MAX)\s*\([^)]*\)\s*(>=|<=|<>|!=|=|>|<)\s*\d+(\.\d+)?',
+    re.IGNORECASE,
+)
+_EQUIJOIN_RE = re.compile(r'\b\w+\.\w+\s*=\s*\w+\.\w+')
+_NULL_EQ_RE  = re.compile(r'(=|!=|<>)\s*NULL\b', re.IGNORECASE)
+_RAW_JOIN_RE = re.compile(
+    r'\b(INNER|LEFT|RIGHT|FULL|CROSS)\s+(?:OUTER\s+)?JOIN\b|\bJOIN\b',
+    re.IGNORECASE,
+)
 
 
-# ======================================================================
-#  GRADING LOGIC
-# ======================================================================
+def _extract_join_types_raw(sql: Optional[str]) -> set:
+    """
+    Extract the set of JOIN types used anywhere in the raw SQL — including
+    inside set-op branches and nested subqueries. This is needed because
+    sql_parser.parse_sql() early-returns for SET_OP queries with empty
+    `joins`, and deeply nested JOINs do not surface on the top-level
+    ParsedQuery either.
+    """
+    types = set()
+    for m in _RAW_JOIN_RE.finditer(sql or ""):
+        tok = m.group(0).upper()
+        if tok == "JOIN":
+            types.add("INNER")
+        else:
+            first = tok.split()[0]
+            types.add(first)
+    return types
 
-def _grade_syntax(student_parse: ParsedQuery, execution_error: str = None) -> GradeComponent:
+
+def _has_aggregate(text: Optional[str]) -> bool:
+    """Return True if the text contains a SQL aggregate function call."""
+    return bool(text) and bool(_AGG_RE.search(text))
+
+
+def _has_hardcoded_threshold(text: Optional[str]) -> bool:
+    """Detect an aggregate compared against a numeric literal."""
+    return bool(text) and bool(_HARDCODED_RE.search(text))
+
+
+def _normalize_join_type(jt: str) -> str:
+    """Normalize 'JOIN' to 'INNER', uppercase everything, strip 'OUTER'."""
+    if not jt:
+        return "INNER"
+    tokens = [t for t in jt.upper().split() if t not in ("OUTER", "JOIN")]
+    return tokens[0] if tokens else "INNER"
+
+
+def _has_cartesian_product(parse: ParsedQuery) -> bool:
+    """
+    Detect a cartesian product among the FROM tables.
+
+    Heuristic: for N ≥ 2 tables, every table (or alias) must participate in
+    at least one equi-join predicate (`a.x = b.y`) in WHERE. A single
+    equi-join predicate among, say, 5 comma-joined tables still leaves the
+    other tables cartesian — the original "any equi-join ⇒ no cartesian"
+    check missed those cases.
+    """
+    if len(parse.from_tables) < 2:
+        return False
+    w = parse.where_clause or ""
+
+    # Collect alias → table tokens from the raw FROM chunk. We look at
+    # comma-separated entries in the FROM text up to the first WHERE /
+    # GROUP / HAVING / ORDER.
+    m = re.search(r'\bFROM\b(.+?)(?:\bWHERE\b|\bGROUP\b|\bHAVING\b|\bORDER\b|$)',
+                  parse.raw or "", re.IGNORECASE | re.DOTALL)
+    from_chunk = m.group(1) if m else ""
+    # Split only at top-level commas (no regex depth-tracking needed for
+    # simple comma-joins — JOIN … ON … cannot contain commas at this layer).
+    aliases = []
+    for part in from_chunk.split(','):
+        part = part.strip()
+        # Drop any trailing JOIN…ON… that belongs to the first table's
+        # explicit JOIN chain (present when `A JOIN B ON …, C` is written).
+        part = re.split(r'\b(INNER|LEFT|RIGHT|FULL|CROSS|NATURAL)?\s*JOIN\b',
+                         part, maxsplit=1, flags=re.IGNORECASE)[0].strip()
+        if not part:
+            continue
+        toks = re.split(r'\s+(?:AS\s+)?', part, flags=re.IGNORECASE)
+        toks = [t for t in toks if t]
+        if len(toks) >= 2:
+            aliases.append(toks[-1])   # alias
+        elif toks:
+            aliases.append(toks[0])    # bare table name (its own alias)
+
+    # If fewer than 2 comma-separated FROM entries, no comma-pair cartesian.
+    if len(aliases) < 2:
+        return False
+
+    # Every alias must appear on at least one side of an equi-join predicate.
+    equi_pattern = r'\b({al})\.\w+\s*=\s*\w+\.\w+|\b\w+\.\w+\s*=\s*({al})\.\w+'
+    for alias in aliases:
+        pat = equi_pattern.format(al=re.escape(alias))
+        if not re.search(pat, w, re.IGNORECASE):
+            return True  # alias never linked — cartesian on this alias
+    return False
+
+
+def _has_correlated_ref(parse: ParsedQuery) -> bool:
+    """
+    Loose check: the outer FROM alias (or table name) appears inside any
+    subquery's WHERE clause. Alias-agnostic, not tied to a specific column.
+    """
+    if not parse.subqueries or not parse.from_tables:
+        return False
+
+    outer_names = set()
+    for t in parse.from_tables:
+        outer_names.add(t.upper())
+    # Pull aliases from the raw FROM section.
+    m = re.search(r'\bFROM\b(.+?)(?:\bWHERE\b|\bGROUP\b|\bHAVING\b|\bORDER\b|$)',
+                  parse.raw or "", re.IGNORECASE | re.DOTALL)
+    if m:
+        chunk = m.group(1)
+        for alias in re.findall(r'\b\w+\s+(?:AS\s+)?(\w+)\b', chunk, re.IGNORECASE):
+            if len(alias) <= 4:
+                outer_names.add(alias.upper())
+
+    def _walk(pq):
+        for sq in pq.subqueries:
+            text = ((sq.where_clause or "") + " " + (sq.raw or "")).upper()
+            for name in outer_names:
+                if re.search(rf'\b{re.escape(name)}\.\w+', text):
+                    return True
+            if _walk(sq):
+                return True
+        return False
+
+    return _walk(parse)
+
+
+def _aggregate_in_where(parse: ParsedQuery) -> bool:
+    """M7 shape: aggregate appears in WHERE clause."""
+    return _has_aggregate(parse.where_clause)
+
+
+def _has_bare_aggregate_without_group_by(parse: ParsedQuery) -> bool:
+    """M6: SELECT mixes an aggregate with a non-aggregate column, no GROUP BY."""
+    if parse.group_by:
+        return False
+    has_agg = any(_has_aggregate(c) for c in parse.select_cols)
+    has_non_agg = any(
+        c.strip() != "*" and not _has_aggregate(c)
+        for c in parse.select_cols
+    )
+    return has_agg and has_non_agg
+
+
+def _has_null_equality(parse: ParsedQuery) -> bool:
+    """Detect `= NULL` / `!= NULL` anywhere in the query text."""
+    return bool(_NULL_EQ_RE.search(parse.raw or ""))
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  MISCONCEPTION DETECTION — PROBLEM-TYPE DISPATCH
+# ══════════════════════════════════════════════════════════════════════
+
+def _detect_division(base: ParsedQuery, student: ParsedQuery) -> List[str]:
+    found = []
+    if student.where_type == "IN":
+        found.append("IN_FOR_DIVISION")
+    elif student.where_type == "NOT_IN" and base.where_type == "NOT_EXISTS":
+        found.append("NOT_IN_vs_NOT_EXISTS")
+    elif student.where_type in (None, "SIMPLE", "EXISTS"):
+        found.append("MISSING_NOT_EXISTS")
+
+    if student.where_type == "NOT_EXISTS" and not _has_correlated_ref(student):
+        found.append("MISSING_CORRELATED_REF")
+
+    if _has_hardcoded_threshold(student.having) or _has_hardcoded_threshold(student.where_clause):
+        found.append("HARDCODED_THRESHOLD")
+
+    if student.group_by and not student.having and student.where_type != "NOT_EXISTS":
+        found.append("MISSING_HAVING")
+
+    return found
+
+
+def _detect_join(base: ParsedQuery, student: ParsedQuery) -> List[str]:
+    found = []
+    # Structural checks (CARTESIAN_PRODUCT, MISSING_JOIN, WRONG_JOIN_TYPE)
+    # are handled by _detect_common and thus fire for every problem_type.
+    if base.where_clause and not student.where_clause:
+        found.append("MISSING_WHERE")
+    return found
+
+
+def _detect_aggregation(base: ParsedQuery, student: ParsedQuery) -> List[str]:
+    found = []
+    if _has_bare_aggregate_without_group_by(student):
+        found.append("MISSING_GROUP_BY")
+
+    if _aggregate_in_where(student):
+        found.append("HAVING_vs_WHERE")
+
+    if base.having and not student.having:
+        found.append("MISSING_HAVING")
+
+    if base.having and student.having and not _has_aggregate(student.having):
+        if "HAVING_vs_WHERE" not in found:
+            found.append("HAVING_vs_WHERE")
+
+    if base.where_clause and not student.where_clause:
+        found.append("MISSING_WHERE")
+
+    if base.group_by and not student.group_by and "MISSING_GROUP_BY" not in found:
+        found.append("MISSING_GROUP_BY")
+
+    return found
+
+
+def _detect_setop(base: ParsedQuery, student: ParsedQuery) -> List[str]:
+    found = []
+    if base.set_operation and not student.set_operation:
+        found.append("MISSING_SET_OP")
+        return found
+    if base.set_operation and student.set_operation:
+        base_op = base.set_operation.upper().replace(" ALL", "")
+        student_op = student.set_operation.upper().replace(" ALL", "")
+        if base_op != student_op:
+            found.append("WRONG_SET_OP")
+    return found
+
+
+def _detect_subquery(base: ParsedQuery, student: ParsedQuery) -> List[str]:
+    found = []
+    if base.where_type == "EXISTS" and student.where_type == "IN":
+        found.append("IN_vs_EXISTS")
+    if base.where_type == "NOT_EXISTS" and student.where_type == "NOT_IN":
+        found.append("NOT_IN_vs_NOT_EXISTS")
+    if base.where_type == "NOT_EXISTS" and student.where_type in ("IN", "SIMPLE", None):
+        if student.where_type == "IN":
+            if "IN_vs_EXISTS" not in found:
+                found.append("IN_vs_EXISTS")
+        elif student.where_type in ("SIMPLE", None):
+            found.append("MISSING_NOT_EXISTS")
+    if base.where_type in ("EXISTS", "NOT_EXISTS") and student.subqueries:
+        if not _has_correlated_ref(student):
+            found.append("MISSING_CORRELATED_REF")
+    if base.where_clause and not student.where_clause:
+        found.append("MISSING_WHERE")
+    return found
+
+
+def _detect_null(base: ParsedQuery, student: ParsedQuery) -> List[str]:
+    found = []
+    if _has_null_equality(student):
+        found.append("NULL_EQUALITY")
+    if base.where_clause and not student.where_clause:
+        found.append("MISSING_WHERE")
+    return found
+
+
+def _detect_common(base: ParsedQuery, student: ParsedQuery) -> List[str]:
+    """Structural checks that apply regardless of problem_type."""
+    found = []
+    if _has_null_equality(student):
+        found.append("NULL_EQUALITY")
+    if _has_cartesian_product(student):
+        found.append("CARTESIAN_PRODUCT")
+
+    # Wrong join type — applies whenever both queries have explicit JOINs.
+    # Uses a raw-SQL scan so the check reaches JOINs nested inside set-op
+    # branches (UNION/INTERSECT/EXCEPT) or subqueries, which the parser's
+    # top-level `joins` field does not surface.
+    base_join_types = _extract_join_types_raw(base.raw)
+    student_join_types = _extract_join_types_raw(student.raw)
+    if base_join_types and student_join_types and base_join_types != student_join_types:
+        found.append("WRONG_JOIN_TYPE")
+    elif base.joins and student.joins:
+        base_types = {_normalize_join_type(j['type']) for j in base.joins}
+        student_types = {_normalize_join_type(j['type']) for j in student.joins}
+        if base_types != student_types and "WRONG_JOIN_TYPE" not in found:
+            found.append("WRONG_JOIN_TYPE")
+
+    # Missing join — reference includes more joined tables than student.
+    base_total = len(base.from_tables) + len(base.joins)
+    student_total = len(student.from_tables) + len(student.joins)
+    if student_total < base_total:
+        found.append("MISSING_JOIN")
+
+    return found
+
+
+_DETECTOR_DISPATCH = {
+    "DIVISION":    _detect_division,
+    "JOIN":        _detect_join,
+    "AGGREGATION": _detect_aggregation,
+    "SET_OP":      _detect_setop,
+    "SUBQUERY":    _detect_subquery,
+    "NULL":        _detect_null,
+}
+
+
+def _detect_misconceptions(base: ParsedQuery, student: ParsedQuery,
+                            diffs: List[ASTDiff], problem_type: str) -> List[Dict]:
+    """
+    Return a de-duplicated list of misconception dicts in detection order.
+    Each dict contains the key, library entry, and per-misconception penalty.
+    """
+    if student.error:
+        return []
+
+    keys: List[str] = []
+    detector = _DETECTOR_DISPATCH.get((problem_type or "").upper())
+    if detector:
+        keys.extend(detector(base, student))
+    for k in _detect_common(base, student):
+        if k not in keys:
+            keys.append(k)
+
+    out = []
+    for k in keys:
+        pattern = MISCONCEPTION_PATTERNS.get(k)
+        if not pattern:
+            continue
+        out.append({
+            "key":     k,
+            "penalty": MISCONCEPTION_PENALTIES.get(k, 5),
+            **pattern,
+        })
+    return out
+
+
+# ══════════════════════════════════════════════════════════════════════
+#  GRADING
+# ══════════════════════════════════════════════════════════════════════
+
+def _grade_syntax(student_parse: ParsedQuery, execution_error: Optional[str] = None) -> GradeComponent:
     if student_parse.error:
         return GradeComponent("Syntax", 0, WEIGHTS["syntax"],
                               notes=[f"Syntax error: {student_parse.error}"])
@@ -278,67 +663,25 @@ def _grade_syntax(student_parse: ParsedQuery, execution_error: str = None) -> Gr
                           notes=["Query is syntactically valid."])
 
 
-def _grade_logic(base_parse: ParsedQuery, student_parse: ParsedQuery,
-                 diffs: List[ASTDiff], problem_type: str) -> GradeComponent:
+def _grade_logic(base: ParsedQuery, student: ParsedQuery, diffs: List[ASTDiff],
+                 problem_type: str, misconceptions: List[Dict]) -> GradeComponent:
     max_s = WEIGHTS["logic"]
-    if student_parse.error:
+    if student.error:
         return GradeComponent("Logic", 0, max_s, notes=["Cannot assess logic: syntax error."])
 
     score = max_s
-    notes = []
+    notes: List[str] = []
 
-    # WHERE type mismatch
-    where_diff = next((d for d in diffs if d.path == "WHERE.type"), None)
-    if where_diff:
-        bv, sv = where_diff.base_value, where_diff.student_value
-        if bv == "NOT_EXISTS":
-            if sv == "IN":
-                score -= 18
-                notes.append("Critical: IN used instead of NOT EXISTS (division logic error).")
-            elif sv == "NOT_IN":
-                score -= 8
-                notes.append("NOT IN used -- may fail with NULLs; prefer NOT EXISTS.")
-            elif sv in (None, "SIMPLE"):
-                score -= 20
-                notes.append("Division pattern entirely absent.")
-        elif bv in ("IN", "EXISTS") and sv != bv:
-            score -= 8
-            notes.append(f"Expected {bv} pattern but student used {sv}.")
+    for m in misconceptions:
+        score -= m["penalty"]
+        notes.append(f"{m['title']} (−{m['penalty']})")
 
-    # Missing WHERE (M1)
-    if base_parse.where_clause and not student_parse.where_clause:
-        score -= 15
-        notes.append("WHERE clause missing entirely.")
-
-    # GROUP BY / HAVING (M6, M7)
-    gb_diff = next((d for d in diffs if d.path == "GROUP_BY"), None)
-    hv_diff = next((d for d in diffs if d.path == "HAVING"), None)
-    if gb_diff and gb_diff.diff_type == "MISSING":
-        score -= 10
-        notes.append("Missing GROUP BY -- aggregate functions require grouping.")
-    if hv_diff and hv_diff.diff_type == "MISSING":
-        score -= 8
-        notes.append("Missing HAVING -- group filter absent.")
-
-    # Subquery depth (M9)
-    sq_diff = next((d for d in diffs if d.path == "SUBQUERY.depth"), None)
-    if sq_diff and sq_diff.base_value > sq_diff.student_value:
-        score -= 5
-        notes.append(f"Reference uses {sq_diff.base_value} subquery level(s); "
-                     f"student uses {sq_diff.student_value}.")
-
-    # JOIN count mismatch (M4, M5)
-    join_diff = next((d for d in diffs if d.path == "JOINS.count"), None)
-    if join_diff and join_diff.base_value > join_diff.student_value:
-        score -= 8
-        notes.append(f"Missing {join_diff.base_value - join_diff.student_value} JOIN(s).")
-
-    # Set operation mismatch (M10)
-    set_diff = next((d for d in diffs if d.path == "SET_OPERATION"), None)
-    if set_diff and set_diff.base_value != set_diff.student_value:
-        score -= 12
-        notes.append(f"Wrong set op: reference={set_diff.base_value}, "
-                     f"student={set_diff.student_value}.")
+    if not misconceptions:
+        sel_diff = any(d.path.startswith("SELECT.columns") for d in diffs)
+        from_diff = any(d.path.startswith("FROM.tables") for d in diffs)
+        if sel_diff or from_diff:
+            score -= 5
+            notes.append("Minor structural mismatch in SELECT or FROM (−5).")
 
     if not notes:
         notes.append("Query structure matches the reference closely.")
@@ -352,17 +695,19 @@ def _grade_results(comparison: Dict) -> GradeComponent:
     if comparison.get("are_equivalent"):
         return GradeComponent("Results", max_s, max_s,
                               notes=["Query output exactly matches the reference."])
+
     jaccard = comparison.get("jaccard_similarity", 0.0)
     score = round(jaccard * max_s)
     missing = len(comparison.get("missing_rows", []))
     extra   = len(comparison.get("extra_rows", []))
     notes = []
     if extra:
-        notes.append(f"{extra} extra (incorrect) row(s) in output.")
+        notes.append(f"{extra} extra (incorrect) row(s) in your output.")
     if missing:
-        notes.append(f"{missing} expected row(s) missing.")
+        notes.append(f"{missing} row(s) from the expected output are missing.")
     if not notes:
         notes.append("Partial match.")
+
     return GradeComponent("Results", score, max_s, notes=notes)
 
 
@@ -389,385 +734,162 @@ def _score_to_letter(score: int) -> str:
     return "F"
 
 
-# ======================================================================
-#  MISCONCEPTION DETECTION  (M1 - M10)
-# ======================================================================
-
-def _has_cartesian_product(student_parse: ParsedQuery) -> bool:
-    """True if student lists 2+ tables with no explicit join condition."""
-    if len(student_parse.from_tables) < 2:
-        return False
-    if student_parse.joins:
-        return False
-    # Check WHERE for an implicit join predicate (tbl1.col = tbl2.col)
-    wc = student_parse.where_clause or ""
-    return not bool(_JOIN_PRED_RE.search(wc))
-
-
-def _find_deepest_subquery(pq: ParsedQuery) -> Optional[ParsedQuery]:
-    """Return the innermost ParsedQuery (deepest subquery level)."""
-    if not pq.subqueries:
-        return pq
-    return _find_deepest_subquery(pq.subqueries[0])
-
-
-def _detect_misconceptions(base_parse: ParsedQuery,
-                            student_parse: ParsedQuery,
-                            diffs: List[ASTDiff],
-                            problem_type: str = "DIVISION") -> List[Dict]:
-    """
-    Detect all applicable misconceptions M1-M10.
-    Works across all problem types (DIVISION, JOIN, AGGREGATION, SET_OP, SUBQUERY, NULL).
-    Returns a list of matched misconception dicts.
-    """
-    found = []
-    su = student_parse.raw.upper()
-    bu = base_parse.raw.upper()
-
-    # -- M1: Missing WHERE Condition ----------------------------------
-    if base_parse.where_clause and not student_parse.where_clause:
-        found.append({"key": "MISSING_WHERE", **MISCONCEPTION_PATTERNS["MISSING_WHERE"]})
-    elif (base_parse.where_clause and student_parse.where_clause and
-          len(student_parse.where_clause.strip()) <
-          len(base_parse.where_clause.strip()) * 0.3):
-        found.append({"key": "MISSING_WHERE", **MISCONCEPTION_PATTERNS["MISSING_WHERE"]})
-
-    # -- M2: IN vs EXISTS Confusion (non-division only) ---------------
-    if problem_type != "DIVISION":
-        base_exists = "EXISTS" in bu and "NOT EXISTS" not in bu
-        stu_in      = student_parse.where_type == "IN"
-        base_in     = base_parse.where_type == "IN"
-        stu_exists  = "EXISTS" in su and "NOT EXISTS" not in su
-        if (base_exists and stu_in) or (base_in and stu_exists):
-            found.append({"key": "IN_VS_EXISTS",
-                          **MISCONCEPTION_PATTERNS["IN_VS_EXISTS"]})
-
-    # -- M3: NOT IN vs NOT EXISTS -------------------------------------
-    if (base_parse.where_type == "NOT_EXISTS" and
-            student_parse.where_type == "NOT_IN"):
-        found.append({"key": "NOT_IN_VS_NOT_EXISTS",
-                      **MISCONCEPTION_PATTERNS["NOT_IN_VS_NOT_EXISTS"]})
-
-    # -- M4: Wrong JOIN Type ------------------------------------------
-    base_join_types = {j.get("type", "").upper() for j in base_parse.joins}
-    stu_join_types  = {j.get("type", "").upper() for j in student_parse.joins}
-    base_outer = any("LEFT" in t or "RIGHT" in t or "OUTER" in t for t in base_join_types)
-    stu_outer  = any("LEFT" in t or "RIGHT" in t or "OUTER" in t for t in stu_join_types)
-    stu_inner  = bool(student_parse.joins) and not stu_outer
-
-    if base_outer and stu_inner:
-        found.append({"key": "WRONG_JOIN_TYPE",
-                      **MISCONCEPTION_PATTERNS["WRONG_JOIN_TYPE"]})
-    elif not base_outer and stu_outer and base_parse.joins:
-        found.append({"key": "WRONG_JOIN_TYPE",
-                      **MISCONCEPTION_PATTERNS["WRONG_JOIN_TYPE"]})
-
-    # -- M5: Cartesian Product ----------------------------------------
-    if _has_cartesian_product(student_parse):
-        # Only flag if reference does have explicit joins or a linking WHERE
-        base_has_link = bool(base_parse.joins) or bool(
-            _JOIN_PRED_RE.search(base_parse.where_clause or ""))
-        if base_has_link:
-            found.append({"key": "CARTESIAN_PRODUCT",
-                          **MISCONCEPTION_PATTERNS["CARTESIAN_PRODUCT"]})
-
-    # -- M6: Missing GROUP BY -----------------------------------------
-    stu_has_agg = bool(_AGG_RE.search(student_parse.raw))
-    if stu_has_agg and not student_parse.group_by and base_parse.group_by:
-        found.append({"key": "MISSING_GROUP_BY",
-                      **MISCONCEPTION_PATTERNS["MISSING_GROUP_BY"]})
-
-    # -- M7a: Missing HAVING ------------------------------------------
-    if (student_parse.group_by and
-            not student_parse.having and
-            base_parse.having):
-        found.append({"key": "MISSING_HAVING",
-                      **MISCONCEPTION_PATTERNS["MISSING_HAVING"]})
-
-    # -- M7b: Hardcoded Threshold in HAVING ---------------------------
-    if student_parse.having and _HARDCODE_RE.search(student_parse.having):
-        found.append({"key": "HARDCODED_THRESHOLD",
-                      **MISCONCEPTION_PATTERNS["HARDCODED_THRESHOLD"]})
-
-    # -- M7c: Aggregate in WHERE (WHERE used instead of HAVING) -------
-    if (student_parse.where_clause and
-            _AGG_RE.search(student_parse.where_clause) and
-            not any(m["key"] == "MISSING_HAVING" for m in found)):
-        found.append({"key": "MISSING_HAVING",
-                      **MISCONCEPTION_PATTERNS["MISSING_HAVING"]})
-
-    # -- M8: IN-FOR-DIVISION / Missing NOT EXISTS ---------------------
-    if problem_type == "DIVISION" and base_parse.where_type == "NOT_EXISTS":
-        if student_parse.where_type == "IN":
-            found.append({"key": "IN_FOR_DIVISION",
-                          **MISCONCEPTION_PATTERNS["IN_FOR_DIVISION"]})
-        elif student_parse.where_type not in ("NOT_EXISTS", "NOT_IN"):
-            found.append({"key": "MISSING_NOT_EXISTS",
-                          **MISCONCEPTION_PATTERNS["MISSING_NOT_EXISTS"]})
-
-    # -- M9: Missing Correlated Reference -----------------------------
-    if (base_parse.where_type == "NOT_EXISTS" and
-            student_parse.where_type == "NOT_EXISTS" and
-            student_parse.subqueries):
-        deepest = _find_deepest_subquery(student_parse)
-        if deepest and deepest is not student_parse:
-            wc = (deepest.where_clause or "").upper()
-            if not _JOIN_PRED_RE.search(wc):
-                found.append({"key": "MISSING_CORRELATED_REF",
-                              **MISCONCEPTION_PATTERNS["MISSING_CORRELATED_REF"]})
-
-    # -- M10: Set Operation Misuse ------------------------------------
-    set_diff = next((d for d in diffs if d.path == "SET_OPERATION"), None)
-    if set_diff:
-        if set_diff.base_value and set_diff.base_value != set_diff.student_value:
-            found.append({"key": "WRONG_SET_OP",
-                          **MISCONCEPTION_PATTERNS["WRONG_SET_OP"]})
-
-    return found
-
-
-# ======================================================================
+# ══════════════════════════════════════════════════════════════════════
 #  FEEDBACK ITEM GENERATION
-# ======================================================================
+# ══════════════════════════════════════════════════════════════════════
 
-def _generate_feedback_items(base_parse, student_parse, diffs,
-                              comparison, edge_results, provenance_trace,
-                              problem_type, **kwargs) -> List[FeedbackItem]:
-    items = []
-    exec_err = kwargs.get("execution_error")
+def _code_snippet_for(key: str) -> Optional[str]:
+    """Return a ready-to-paste code snippet for common misconceptions."""
+    snippets = {
+        "IN_FOR_DIVISION": (
+            "-- Universal quantification via double negation:\n"
+            "WHERE NOT EXISTS (\n"
+            "  SELECT 1 FROM <Divisor> d\n"
+            "  WHERE d.<filter> = ...\n"
+            "  AND d.<key> NOT IN (\n"
+            "    SELECT t.<key> FROM <Link> t\n"
+            "    WHERE t.<outer_fk> = <outer_alias>.<outer_pk>\n"
+            "  )\n"
+            ")"
+        ),
+        "MISSING_NOT_EXISTS": (
+            "-- Division template:\n"
+            "SELECT o.<cols>\n"
+            "FROM <Outer> o\n"
+            "WHERE NOT EXISTS (\n"
+            "  SELECT 1 FROM <Divisor> d\n"
+            "  WHERE NOT EXISTS (\n"
+            "    SELECT 1 FROM <Link> t\n"
+            "    WHERE t.<outer_fk> = o.<outer_pk>\n"
+            "    AND t.<divisor_fk> = d.<divisor_pk>\n"
+            "  )\n"
+            ");"
+        ),
+        "CARTESIAN_PRODUCT": (
+            "-- Replace the comma-join with an explicit ON condition:\n"
+            "FROM A\n"
+            "JOIN B ON A.<key> = B.<key>"
+        ),
+        "HAVING_vs_WHERE": (
+            "-- Aggregate predicate → HAVING; row-level predicate → WHERE\n"
+            "SELECT col, COUNT(*)\n"
+            "FROM t\n"
+            "WHERE row_level_predicate       -- e.g. t.year = 2024\n"
+            "GROUP BY col\n"
+            "HAVING COUNT(*) > 2;            -- aggregate predicate"
+        ),
+        "MISSING_GROUP_BY": (
+            "-- Every non-aggregate column in SELECT must be in GROUP BY:\n"
+            "SELECT col_a, COUNT(*)\n"
+            "FROM t\n"
+            "GROUP BY col_a;"
+        ),
+        "NULL_EQUALITY": (
+            "-- Correct NULL predicates:\n"
+            "WHERE col IS NULL      -- never  col = NULL\n"
+            "WHERE col IS NOT NULL  -- never  col != NULL"
+        ),
+        "WRONG_SET_OP": (
+            "-- UNION      : in either set\n"
+            "-- INTERSECT  : in both sets\n"
+            "-- EXCEPT     : in left set but not right"
+        ),
+        "IN_vs_EXISTS": (
+            "-- Replace the IN subquery with a correlated EXISTS:\n"
+            "WHERE EXISTS (\n"
+            "  SELECT 1 FROM <inner> i\n"
+            "  WHERE i.<fk> = <outer>.<pk> AND i.<filter> = ...\n"
+            ")"
+        ),
+        "NOT_IN_vs_NOT_EXISTS": (
+            "-- NULL-safe version:\n"
+            "WHERE NOT EXISTS (\n"
+            "  SELECT 1 FROM <inner> i\n"
+            "  WHERE i.<key> = <outer>.<key>\n"
+            ")"
+        ),
+    }
+    return snippets.get(key)
 
-    # -- Syntax -------------------------------------------------------
+
+def _preview_row(row: Any) -> str:
+    """Produce a compact preview string for a row record."""
+    if isinstance(row, dict):
+        for k in ("Name", "StuID", "InstID", "CourseID", "Title"):
+            if k in row and row[k] is not None:
+                return str(row[k])
+        if row:
+            return str(next(iter(row.values())))
+    return str(row)
+
+
+def _generate_feedback_items(base_parse: ParsedQuery, student_parse: ParsedQuery,
+                              diffs: List[ASTDiff], comparison: Dict,
+                              edge_results: List[Dict],
+                              provenance_trace: Optional[Dict],
+                              problem_type: str,
+                              misconceptions: List[Dict],
+                              execution_error: Optional[str] = None) -> List[FeedbackItem]:
+    items: List[FeedbackItem] = []
+
+    # ── Syntax ────────────────────────────────────────────────────
     if student_parse.error:
         items.append(FeedbackItem(
             level="error", category="SYNTAX",
             title="Syntax Error Detected",
             body=student_parse.error,
-            suggestion=(
-                "Check SQL keywords carefully. Common mistakes: "
-                "'FRM' instead of 'FROM', 'SELCT' instead of 'SELECT', "
-                "unmatched parentheses, unclosed quotes."
-            )
+            suggestion="Check SQL keywords carefully. Common mistakes: 'FRM' for 'FROM', 'SELCT' for 'SELECT', unmatched parentheses, or unclosed quotes."
         ))
         return items
-    if exec_err:
+    if execution_error:
         items.append(FeedbackItem(
             level="error", category="SYNTAX",
             title="SQL Execution Error",
-            body=exec_err,
-            suggestion="Check table names, column names, and keyword spelling."
+            body=execution_error,
+            suggestion="Your query could not run. Check for misspelled table names, column names, or keywords."
         ))
         return items
+
     items.append(FeedbackItem(
         level="success", category="SYNTAX",
         title="Syntax Correct",
-        body="Your query is syntactically valid and executes without errors."
+        body="Your query is syntactically valid and can be executed without errors."
     ))
 
-    # -- M1: Missing WHERE --------------------------------------------
-    if base_parse.where_clause and not student_parse.where_clause:
+    # ── Misconception → LOGIC feedback items ───────────────────────
+    for m in misconceptions:
         items.append(FeedbackItem(
             level="error", category="LOGIC",
-            title="Missing WHERE Clause (M1)",
-            body=(
-                "Your query has no WHERE clause but the reference requires one. "
-                "Without a filter the query returns all rows from the table."
-            ),
-            suggestion="Add a WHERE clause to filter rows per the problem conditions.",
-            reference="Brass & Goldberg (2006) JSS; Taipalus et al. (2018) TOCE LOG-4"
+            title=m["title"],
+            body=m["description"],
+            suggestion=m["fix"],
+            code_snippet=_code_snippet_for(m["key"]),
+            reference=m.get("reference"),
         ))
 
-    # -- M2/M3/M8: WHERE type / Division logic ------------------------
-    where_diff = next((d for d in diffs if d.path == "WHERE.type"), None)
-    if where_diff:
-        bv, sv = where_diff.base_value, where_diff.student_value
-
-        if bv == "NOT_EXISTS" and sv == "IN":
-            items.append(FeedbackItem(
-                level="error", category="LOGIC",
-                title="Division Logic Error: IN vs NOT EXISTS (M8)",
-                body=(
-                    "IN tests existential membership (at least one match -- EXISTS). "
-                    "Division requires universal quantification (ALL must match -- FORALL). "
-                    "Students who took only some required courses pass your IN test incorrectly."
-                ),
-                suggestion="Replace IN with the NOT EXISTS double-negation pattern.",
-                code_snippet=(
-                    "-- Correct NOT EXISTS pattern:\n"
-                    "WHERE NOT EXISTS (\n"
-                    "  SELECT c.CourseID FROM Courses c\n"
-                    "  WHERE c.\"Group\" = 'DB'\n"
-                    "  AND c.CourseID NOT IN (\n"
-                    "    SELECT t.CourseID FROM Takes t\n"
-                    "    WHERE t.StuID = s.StuID  -- correlated reference\n"
-                    "  )\n"
-                    ")"
-                ),
-                reference="Miao et al. (SIGMOD 2019) RATest; Miao et al. (VLDB 2020) I-Rex"
-            ))
-        elif bv == "NOT_EXISTS" and sv == "NOT_IN":
-            items.append(FeedbackItem(
-                level="warning", category="LOGIC",
-                title="NOT IN Used -- NOT EXISTS Preferred (M3)",
-                body=(
-                    "NOT IN fails silently when the subquery contains NULLs: "
-                    "SQL three-valued logic returns UNKNOWN instead of FALSE, "
-                    "causing zero rows to be returned. NOT EXISTS handles NULLs correctly."
-                ),
-                suggestion="Replace NOT IN with NOT EXISTS for NULL-safe universal quantification.",
-                reference="Miedema et al. (ICER 2021) -- language-based misconception"
-            ))
-        elif bv == "NOT_EXISTS" and sv in (None, "SIMPLE"):
-            items.append(FeedbackItem(
-                level="error", category="LOGIC",
-                title="Universal Quantification Pattern Missing (M8)",
-                body=(
-                    "Your query has no 'for all' logic. "
-                    "SQL has no FORALL quantifier -- use NOT EXISTS (... NOT IN ...)."
-                ),
-                suggestion="Restructure using NOT EXISTS containing a NOT IN subquery.",
-                code_snippet=(
-                    "-- Division template:\n"
-                    "SELECT s.StuID, s.Name FROM Students s\n"
-                    "WHERE NOT EXISTS (\n"
-                    "  SELECT 1 FROM Courses c\n"
-                    "  WHERE c.\"Group\" = 'DB'\n"
-                    "  AND NOT EXISTS (\n"
-                    "    SELECT 1 FROM Takes t\n"
-                    "    WHERE t.StuID = s.StuID AND t.CourseID = c.CourseID\n"
-                    "  )\n"
-                    ");"
-                ),
-                reference="Miao et al. (SIGMOD 2019) RATest"
-            ))
-        elif bv in ("IN", "EXISTS") and sv != bv and problem_type != "DIVISION":
-            items.append(FeedbackItem(
-                level="warning", category="LOGIC",
-                title="IN vs EXISTS Confusion (M2)",
-                body=(
-                    f"Reference uses {bv}; your query uses {sv}. "
-                    "IN tests a fixed list (non-correlated). "
-                    "EXISTS tests a correlated subquery per outer row."
-                ),
-                suggestion=f"Review whether {bv} or {sv} is correct for this query.",
-                reference="Miedema et al. (ICER 2021) -- generalization-based misconception"
-            ))
-
-    # -- M5: Cartesian Product ----------------------------------------
-    if _has_cartesian_product(student_parse):
-        items.append(FeedbackItem(
-            level="error", category="LOGIC",
-            title="Implicit Cartesian Product (M5)",
-            body=(
-                "Multiple tables in FROM with no linking condition produce a "
-                "Cartesian product: every row from one table paired with every row "
-                "from the other -- almost never the intended result."
-            ),
-            suggestion="Add a JOIN condition. Example: JOIN Takes t ON s.StuID = t.StuID",
-            reference="Brass & Goldberg (2006) JSS Error 20; Taipalus et al. (2018) TOCE SEM-3"
-        ))
-
-    # -- M6: Missing GROUP BY -----------------------------------------
-    gb_diff = next((d for d in diffs if d.path == "GROUP_BY"), None)
-    if gb_diff and gb_diff.diff_type == "MISSING":
-        items.append(FeedbackItem(
-            level="error", category="LOGIC",
-            title="Missing GROUP BY Clause (M6)",
-            body=(
-                "An aggregate function is used without GROUP BY. "
-                "This collapses all rows into one result instead of per-group values."
-            ),
-            suggestion="Add GROUP BY listing all non-aggregated SELECT columns.",
-            reference="Miedema et al. (ICER 2021); Taipalus et al. (2018) TOCE SYN-5"
-        ))
-
-    # -- M7: HAVING vs WHERE ------------------------------------------
-    hv_diff = next((d for d in diffs if d.path == "HAVING"), None)
-    if hv_diff and hv_diff.diff_type == "MISSING" and student_parse.group_by:
-        items.append(FeedbackItem(
-            level="error", category="LOGIC",
-            title="GROUP BY Without HAVING (M7)",
-            body=(
-                "Groups are formed correctly but not filtered. "
-                "HAVING filters groups after aggregation (the GROUP BY equivalent of WHERE)."
-            ),
-            suggestion="Add a HAVING clause. Example: HAVING COUNT(t.CourseID) > 1",
-            reference="Miedema et al. (TOCE 2022)"
-        ))
-
-    if student_parse.having and _HARDCODE_RE.search(student_parse.having):
-        items.append(FeedbackItem(
-            level="warning", category="LOGIC",
-            title="Hardcoded Threshold in HAVING (M7)",
-            body=(
-                "A literal number in HAVING breaks whenever data changes. "
-                "Compute the threshold dynamically."
-            ),
-            suggestion=(
-                "Example: HAVING COUNT(DISTINCT t.CourseID) = "
-                "(SELECT COUNT(*) FROM Courses WHERE \"Group\" = 'DB')"
-            ),
-            reference="Taipalus et al. (2018) TOCE LOG-4"
-        ))
-
-    # -- M9: Missing Correlated Reference -----------------------------
-    if (base_parse.where_type == "NOT_EXISTS" and
-            student_parse.where_type == "NOT_EXISTS" and
-            student_parse.subqueries):
-        deepest = _find_deepest_subquery(student_parse)
-        if deepest and deepest is not student_parse:
-            wc = (deepest.where_clause or "").upper()
-            if not _JOIN_PRED_RE.search(wc):
-                items.append(FeedbackItem(
-                    level="error", category="LOGIC",
-                    title="Missing Correlated Reference in Subquery (M9)",
-                    body=(
-                        "The innermost subquery has no condition linking it to the outer query. "
-                        "Without correlation, the subquery runs once for the entire database "
-                        "instead of once per outer row."
-                    ),
-                    suggestion="Add: WHERE t.StuID = s.StuID inside the innermost subquery.",
-                    reference="Miedema et al. (ICER 2021); Miao et al. (VLDB 2020) I-Rex"
-                ))
-
-    # -- M10: Set Operation Misuse ------------------------------------
-    set_diff = next((d for d in diffs if d.path == "SET_OPERATION"), None)
-    if set_diff and set_diff.base_value != set_diff.student_value:
-        items.append(FeedbackItem(
-            level="error", category="LOGIC",
-            title="Wrong Set Operation (M10)",
-            body=(
-                f"Reference uses {set_diff.base_value}; "
-                f"your query uses {set_diff.student_value or 'no set operation'}. "
-                "UNION=OR, INTERSECT=AND, EXCEPT=NOT."
-            ),
-            suggestion=(
-                "A OR B -> UNION | A AND B -> INTERSECT | A but NOT B -> EXCEPT"
-            ),
-            reference="Miedema et al. (ICER 2021) -- set operation semantics"
-        ))
-
-    # -- Results ------------------------------------------------------
+    # ── Results ────────────────────────────────────────────────────
     missing = comparison.get("missing_rows", [])
     extra   = comparison.get("extra_rows", [])
 
     if extra:
-        names = [r.get("Name") or r.get("StuID", str(r)) for r in extra[:3]]
+        preview = [_preview_row(r) for r in extra[:3]]
         items.append(FeedbackItem(
             level="error", category="RESULT",
             title=f"{len(extra)} Extra Row(s) in Your Output",
             body=(
-                f"Your query incorrectly returns: {', '.join(str(n) for n in names)}. "
-                "These rows pass your condition but should not appear in the result."
+                f"Your query returns rows that are not in the expected output: {', '.join(preview)}. "
+                "These are counterexamples — tracing why each one satisfies your predicate but should "
+                "not usually reveals the underlying logic error."
             ),
-            suggestion="Trace why each extra row satisfies your WHERE clause when it should not."
+            suggestion="Inspect the WHERE/HAVING/set-operator logic against one of these rows."
         ))
 
     if missing:
-        names = [r.get("Name") or r.get("StuID", str(r)) for r in missing[:3]]
+        preview = [_preview_row(r) for r in missing[:3]]
         items.append(FeedbackItem(
             level="error", category="RESULT",
             title=f"{len(missing)} Missing Row(s) from Expected Output",
-            body=f"Your query is missing: {', '.join(str(n) for n in names)}."
+            body=f"Your query is missing: {', '.join(preview)}, which should appear in the result."
         ))
 
     if not extra and not missing:
@@ -775,35 +897,35 @@ def _generate_feedback_items(base_parse, student_parse, diffs,
             level="success", category="RESULT",
             title="Output Matches Reference",
             body=(
-                "Your query produces the correct output on the main database. "
-                "Verify edge cases to confirm this is not a coincidental match."
+                "Your query produces the correct output on this database instance. "
+                "Verify edge cases to confirm this is not a coincidental match on this data."
             )
         ))
 
-    # -- Provenance ---------------------------------------------------
+    # ── Provenance ─────────────────────────────────────────────────
     if provenance_trace and provenance_trace.get("divergence_points"):
         for dp in provenance_trace["divergence_points"][:2]:
             items.append(FeedbackItem(
                 level="info", category="PROVENANCE",
                 title=f"Provenance Divergence: {dp.get('name', dp.get('student', ''))}",
                 body=dp.get("explanation", ""),
-                reference="I-REX (Miao et al., VLDB 2020)"
+                reference="I-REX (Miao et al., VLDB 2020) — Block-level SQL tracing"
             ))
 
-    # -- Edge Cases ---------------------------------------------------
+    # ── Edge cases ─────────────────────────────────────────────────
     failed_edge = [e for e in edge_results if not e.get("passed")]
     if failed_edge:
         for e in failed_edge[:3]:
             items.append(FeedbackItem(
                 level="warning", category="EDGE_CASE",
-                title=f"Edge Case Failed: {e['title']}",
+                title=f"Edge Case Failed: {e.get('title','')}",
                 body=(
-                    f"{e['description']} "
-                    f"Base: {e['base_result']['row_count']} row(s); "
-                    f"yours: {e['student_result']['row_count']} row(s). "
-                    f"{e['tests']}"
+                    f"{e.get('description','')} "
+                    f"Base query returned {e.get('base_result',{}).get('row_count','?')} row(s); "
+                    f"your query returned {e.get('student_result',{}).get('row_count','?')} row(s). "
+                    f"{e.get('tests','')}"
                 ),
-                reference="RATest (Miao et al., SIGMOD 2019)"
+                reference="RATest (Miao et al., SIGMOD 2019) — Minimal counterexample generation"
             ))
     elif edge_results:
         items.append(FeedbackItem(
@@ -815,9 +937,9 @@ def _generate_feedback_items(base_parse, student_parse, diffs,
     return items
 
 
-# ======================================================================
+# ══════════════════════════════════════════════════════════════════════
 #  MAIN ENTRY POINT
-# ======================================================================
+# ══════════════════════════════════════════════════════════════════════
 
 def generate_feedback(
     base_parse: ParsedQuery,
@@ -826,58 +948,65 @@ def generate_feedback(
     edge_results: List[Dict],
     provenance_trace: Optional[Dict],
     problem_type: str = "DIVISION",
-    execution_error: str = None
+    execution_error: Optional[str] = None,
 ) -> FeedbackReport:
-    """
-    Generate a complete FeedbackReport from all analysis components.
-    Detects misconceptions M1-M10 across all problem types.
-    """
+    """Generate a complete FeedbackReport from all analysis components."""
     diffs = compare_queries(base_parse, student_parse)
     is_struct_equal = queries_structurally_equal(base_parse, student_parse)
 
+    # Shape-level misconception classification (strict, pre-filter).
+    raw_misconceptions = _detect_misconceptions(base_parse, student_parse, diffs, problem_type)
+
+    # Result-aware filter: if the student's output matches the reference AND
+    # (no edge cases ran OR every edge case passed), treat the query as an
+    # alternate correct solution and drop the structural misconceptions. A
+    # shape difference between two queries that agree on every tested
+    # instance is a stylistic choice, not a bug.
+    results_ok = bool(comparison.get("are_equivalent"))
+    edges_ok   = not edge_results or all(e.get("passed") for e in edge_results)
+    suppressed = results_ok and edges_ok
+    misconceptions = [] if suppressed else raw_misconceptions
+
     syntax_grade  = _grade_syntax(student_parse, execution_error)
-    logic_grade   = _grade_logic(base_parse, student_parse, diffs, problem_type)
+    logic_grade   = _grade_logic(base_parse, student_parse, diffs, problem_type, misconceptions)
     results_grade = _grade_results(comparison)
     edge_grade    = _grade_edge_cases(edge_results)
 
     total = syntax_grade.score + logic_grade.score + results_grade.score + edge_grade.score
 
     is_alt_correct = (
-        comparison.get("are_equivalent") and
-        not is_struct_equal and
-        all(e.get("passed") for e in edge_results)
+        results_ok and edges_ok and not is_struct_equal
     )
     if is_alt_correct:
         total = min(total + 5, 100)
 
     items = _generate_feedback_items(
-        base_parse, student_parse, diffs,
-        comparison, edge_results, provenance_trace, problem_type,
-        execution_error=execution_error
-    )
-
-    misconceptions = _detect_misconceptions(
-        base_parse, student_parse, diffs, problem_type
+        base_parse, student_parse, diffs, comparison, edge_results,
+        provenance_trace, problem_type, misconceptions,
+        execution_error=execution_error,
     )
 
     if student_parse.error:
         summary = "Your query has a syntax error and could not be evaluated."
     elif is_alt_correct:
         summary = (
-            f"Excellent! Your query produces the correct output and passes all edge cases. "
-            f"Recognized as an alternate correct solution. Score: {total}/100."
+            f"Excellent. Your query produces the correct output and passes all edge cases. "
+            f"It is structurally different from the reference — accepted as an alternate correct solution. "
+            f"Score: {total}/100."
         )
     elif comparison.get("are_equivalent"):
         summary = (
-            f"Your query produces the correct output. "
-            f"Check edge cases to ensure full correctness. Score: {total}/100."
+            f"Your query produces the correct output on the main database. "
+            f"Review any edge-case failures to ensure full correctness. Score: {total}/100."
         )
     else:
-        mc_labels = [m.get("id", m["key"]) for m in misconceptions]
-        mc_str = f" Detected: {', '.join(mc_labels)}." if mc_labels else ""
         err_count = len([i for i in items if i.level == "error"])
+        primary = misconceptions[0]["title"] if misconceptions else (
+            diffs[0].path if diffs else "structural"
+        )
         summary = (
-            f"Your query has {err_count} error(s) to fix.{mc_str} "
+            f"Your query has {err_count} issue(s) to address. "
+            f"Primary issue: {primary}. "
             f"Score: {total}/100. Review the feedback items below."
         )
 
@@ -888,5 +1017,6 @@ def generate_feedback(
         components=[syntax_grade, logic_grade, results_grade, edge_grade],
         items=items,
         misconceptions=misconceptions,
+        raw_misconceptions=raw_misconceptions,
         summary=summary,
     )

@@ -27,11 +27,19 @@ def init_main_db():
     conn.execute("PRAGMA foreign_keys = OFF")
     c = conn.cursor()
     c.executescript("""
+        DROP TABLE IF EXISTS Prerequisites;
+        DROP TABLE IF EXISTS Teaches;
         DROP TABLE IF EXISTS Takes;
         DROP TABLE IF EXISTS Courses;
-        DROP TABLE IF EXISTS Students;
         DROP TABLE IF EXISTS Instructors;
-        DROP TABLE IF EXISTS Teaches;
+        DROP TABLE IF EXISTS Students;
+        DROP TABLE IF EXISTS Departments;
+
+        CREATE TABLE Departments (
+            DeptID   TEXT PRIMARY KEY,
+            Name     TEXT NOT NULL,
+            Building TEXT
+        );
 
         CREATE TABLE Students (
             StuID   TEXT PRIMARY KEY,
@@ -44,7 +52,8 @@ def init_main_db():
             CourseID TEXT PRIMARY KEY,
             Title    TEXT NOT NULL,
             Credits  INTEGER,
-            "Group"  TEXT
+            "Group"  TEXT,
+            DeptID   TEXT REFERENCES Departments(DeptID)
         );
 
         CREATE TABLE Takes (
@@ -57,7 +66,8 @@ def init_main_db():
         CREATE TABLE Instructors (
             InstID TEXT PRIMARY KEY,
             Name   TEXT NOT NULL,
-            Dept   TEXT
+            Dept   TEXT,
+            DeptID TEXT REFERENCES Departments(DeptID)
         );
 
         CREATE TABLE Teaches (
@@ -65,9 +75,22 @@ def init_main_db():
             CourseID TEXT REFERENCES Courses(CourseID),
             PRIMARY KEY (InstID, CourseID)
         );
+
+        CREATE TABLE Prerequisites (
+            CourseID TEXT REFERENCES Courses(CourseID),
+            PrereqID TEXT REFERENCES Courses(CourseID),
+            PRIMARY KEY (CourseID, PrereqID)
+        );
     """)
 
-    # Students
+    # Departments (anchor for FK integration)
+    c.executemany("INSERT INTO Departments VALUES (?,?,?)", [
+        ("D1", "Computer Science",  "Brink Hall"),
+        ("D2", "Mathematics",       "Brink Hall"),
+        ("D3", "Physics",           "Engineering Phys."),
+    ])
+
+    # Students (unchanged)
     c.executemany("INSERT INTO Students VALUES (?,?,?,?)", [
         ("S1", "Alice",   18, "CS"),
         ("S2", "Nancy",   19, "CS"),
@@ -76,16 +99,16 @@ def init_main_db():
         ("S5", "Edward",  21, "Physics"),
     ])
 
-    # Courses
-    c.executemany('INSERT INTO Courses VALUES (?,?,?,?)', [
-        ("CS360", "Intro DB",      3, "DB"),
-        ("CS460", "Adv. DB",       3, "DB"),
-        ("CS120", "Python Prog",   3, "PL"),
-        ("CS220", "Data Struct",   3, "CS"),
-        ("CS480", "ML Basics",     3, "AI"),
+    # Courses — 5-column now (DeptID FK added)
+    c.executemany('INSERT INTO Courses VALUES (?,?,?,?,?)', [
+        ("CS360", "Intro DB",      3, "DB",   "D1"),
+        ("CS460", "Adv. DB",       3, "DB",   "D1"),
+        ("CS120", "Python Prog",   3, "PL",   "D1"),
+        ("CS220", "Data Struct",   3, "CS",   "D1"),
+        ("CS480", "ML Basics",     3, "AI",   "D1"),
     ])
 
-    # Takes
+    # Takes (unchanged)
     c.executemany("INSERT INTO Takes VALUES (?,?,?)", [
         ("S1", "CS360", "A"),
         ("S1", "CS460", "A-"),
@@ -97,20 +120,30 @@ def init_main_db():
         ("S5", "CS480", "A"),
     ])
 
-    # Instructors
-    c.executemany("INSERT INTO Instructors VALUES (?,?,?)", [
-        ("I1", "Dr. Smith",  "CS"),
-        ("I2", "Dr. Jones",  "CS"),
-        ("I3", "Dr. Brown",  "Math"),
+    # Instructors — 4-column now (DeptID FK added)
+    c.executemany("INSERT INTO Instructors VALUES (?,?,?,?)", [
+        ("I1", "Dr. Smith",  "CS",    "D1"),
+        ("I2", "Dr. Jones",  "CS",    "D1"),
+        ("I3", "Dr. Brown",  "Math",  "D2"),
     ])
 
-    # Teaches
+    # Teaches (unchanged)
     c.executemany("INSERT INTO Teaches VALUES (?,?)", [
         ("I1", "CS360"),
         ("I1", "CS460"),
         ("I2", "CS120"),
         ("I2", "CS220"),
         ("I3", "CS480"),
+    ])
+
+    # Prerequisites — enables complex-division problems
+    # CS460 (Adv. DB) needs CS360 (Intro DB) — classic prereq chain
+    # CS220 (Data Struct) needs CS120 (Python Prog)
+    # CS480 (ML Basics) needs CS220 (Data Struct)
+    c.executemany("INSERT INTO Prerequisites VALUES (?,?)", [
+        ("CS460", "CS360"),
+        ("CS220", "CS120"),
+        ("CS480", "CS220"),
     ])
 
     conn.commit()
@@ -195,6 +228,18 @@ def init_edge_dbs():
         },
     }
 
+    # All five edge DBs share a small departments/instructors/teaches/prerequisites
+    # baseline so that queries referencing those tables (e.g., complex-division
+    # problems over Prerequisites) do not crash under edge-case analysis.
+    _default_departments = [
+        ("D1", "Computer Science", "Brink Hall"),
+        ("D2", "Mathematics",      "Brink Hall"),
+    ]
+    _default_instructors = [
+        ("I1", "Dr. Smith", "CS",   "D1"),
+        ("I2", "Dr. Jones", "CS",   "D1"),
+    ]
+
     for name, config in edge_cases.items():
         path = EDGE_DB_PATH.format(name)
         if os.path.exists(path):
@@ -203,13 +248,26 @@ def init_edge_dbs():
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         c.executescript("""
-            CREATE TABLE Students (StuID TEXT PRIMARY KEY, Name TEXT, Age INTEGER, Major TEXT);
-            CREATE TABLE Courses  (CourseID TEXT PRIMARY KEY, Title TEXT, Credits INTEGER, "Group" TEXT);
-            CREATE TABLE Takes    (StuID TEXT, CourseID TEXT, Grade TEXT, PRIMARY KEY(StuID,CourseID));
+            CREATE TABLE Departments (DeptID TEXT PRIMARY KEY, Name TEXT, Building TEXT);
+            CREATE TABLE Students    (StuID TEXT PRIMARY KEY, Name TEXT, Age INTEGER, Major TEXT);
+            CREATE TABLE Courses     (CourseID TEXT PRIMARY KEY, Title TEXT, Credits INTEGER, "Group" TEXT, DeptID TEXT);
+            CREATE TABLE Takes       (StuID TEXT, CourseID TEXT, Grade TEXT, PRIMARY KEY(StuID,CourseID));
+            CREATE TABLE Instructors (InstID TEXT PRIMARY KEY, Name TEXT, Dept TEXT, DeptID TEXT);
+            CREATE TABLE Teaches     (InstID TEXT, CourseID TEXT, PRIMARY KEY(InstID, CourseID));
+            CREATE TABLE Prerequisites (CourseID TEXT, PrereqID TEXT, PRIMARY KEY(CourseID, PrereqID));
         """)
+        c.executemany("INSERT INTO Departments VALUES (?,?,?)", _default_departments)
         c.executemany("INSERT INTO Students VALUES (?,?,?,?)", config["students"])
-        c.executemany('INSERT INTO Courses VALUES (?,?,?,?)', config["courses"])
+        # Courses — upgrade legacy 4-tuples to 5-tuples by assigning D1 as default dept.
+        upgraded_courses = [
+            (row + ("D1",)) if len(row) == 4 else row
+            for row in config["courses"]
+        ]
+        c.executemany('INSERT INTO Courses VALUES (?,?,?,?,?)', upgraded_courses)
         c.executemany("INSERT INTO Takes VALUES (?,?,?)", config["takes"])
+        c.executemany("INSERT INTO Instructors VALUES (?,?,?,?)", _default_instructors)
+        # Teaches / Prerequisites left empty per edge case — deliberate, so
+        # edge DBs continue to stress-test *absence* of data for these tables.
         conn.commit()
         conn.close()
         print(f"[DB] Edge case '{name}': {config['desc']}")
