@@ -422,37 +422,159 @@ def _has_cartesian_product(parse: ParsedQuery) -> bool:
     return False
 
 
-def _has_correlated_ref(parse: ParsedQuery) -> bool:
-    """
-    Loose check: the outer FROM alias (or table name) appears inside any
-    subquery's WHERE clause. Alias-agnostic, not tied to a specific column.
-    """
-    if not parse.subqueries or not parse.from_tables:
-        return False
+def _block_own_predicate_text(parse: ParsedQuery) -> str:
+    """Return the text of a query block's *own* predicates, with the text of
+    any nested subqueries masked out.
 
-    outer_names = set()
+    `where_clause` for a block includes the raw text of its nested
+    subqueries. To decide whether *this specific block* is correlated to an
+    enclosing scope, the nested subquery text must be removed first —
+    otherwise an alias reference belonging to a deeper block would be
+    miscredited to this one. Parenthesised regions (depth >= 1) are blanked.
+    """
+    wc = parse.where_clause or ""
+    out = []
+    depth = 0
+    for ch in wc:
+        if ch == '(':
+            depth += 1
+            out.append(' ')
+        elif ch == ')':
+            if depth > 0:
+                depth -= 1
+            out.append(' ')
+        elif depth > 0:
+            out.append(' ')
+        else:
+            out.append(ch)
+    return ''.join(out)
+
+
+def _block_defined_aliases(parse: ParsedQuery) -> set:
+    """Aliases (and bare table names) introduced in this block's own FROM."""
+    names = set()
     for t in parse.from_tables:
-        outer_names.add(t.upper())
-    # Pull aliases from the raw FROM section.
-    m = re.search(r'\bFROM\b(.+?)(?:\bWHERE\b|\bGROUP\b|\bHAVING\b|\bORDER\b|$)',
+        names.add(t.upper())
+    # Pull aliases from the FROM section of this block's own raw text only.
+    m = re.search(r'\bFROM\b(.+?)(?:\bWHERE\b|\bGROUP\b|\bHAVING\b|\bORDER\b|\(|$)',
                   parse.raw or "", re.IGNORECASE | re.DOTALL)
     if m:
         chunk = m.group(1)
         for alias in re.findall(r'\b\w+\s+(?:AS\s+)?(\w+)\b', chunk, re.IGNORECASE):
             if len(alias) <= 4:
-                outer_names.add(alias.upper())
+                names.add(alias.upper())
+    return names
 
-    def _walk(pq):
-        for sq in pq.subqueries:
-            text = ((sq.where_clause or "") + " " + (sq.raw or "")).upper()
-            for name in outer_names:
-                if re.search(rf'\b{re.escape(name)}\.\w+', text):
-                    return True
-            if _walk(sq):
-                return True
+
+def _innermost_block_chain(parse: ParsedQuery) -> List[ParsedQuery]:
+    """Return the chain of blocks from the outer query down to the deepest
+    nested subquery, following the most-deeply-nested branch at each level.
+
+    The deepest block is the one that performs the innermost correlated
+    test (the anti-join / division core); it is the block whose correlation
+    the M9 misconception breaks.
+    """
+    chain = [parse]
+    cur = parse
+    while cur.subqueries:
+        cur = cur.subqueries[-1]
+        chain.append(cur)
+    return chain
+
+
+def _block_ancestor_refs(chain: List[ParsedQuery], idx: int) -> set:
+    """For the block at position `idx` in a block chain, return the set of
+    ancestor-scope aliases it references in its own predicates.
+
+    Ancestor-scope aliases are those defined by every block above `idx`.
+    A reference to one of them is a correlation from this block back into
+    an enclosing scope. Returns an empty set for the outermost block
+    (idx 0), which has no ancestors.
+    """
+    if idx <= 0 or idx >= len(chain):
+        return set()
+    ancestor_aliases = set()
+    for blk in chain[:idx]:
+        ancestor_aliases |= _block_defined_aliases(blk)
+    own_text = _block_own_predicate_text(chain[idx]).upper()
+    referenced = set()
+    for name in ancestor_aliases:
+        if re.search(rf'\b{re.escape(name)}\.\w+', own_text):
+            referenced.add(name)
+    return referenced
+
+
+def _ancestor_aliases_referenced(chain: List[ParsedQuery]) -> set:
+    """Ancestor-scope aliases referenced by the innermost block of a chain.
+
+    Thin wrapper over `_block_ancestor_refs` for the deepest block; kept
+    as a named helper because the innermost block is the single most
+    diagnostic level for the IN-for-division / anti-join correlation.
+    """
+    if len(chain) < 2:
+        return set()
+    return _block_ancestor_refs(chain, len(chain) - 1)
+
+
+def _correlation_scope_broken(base: ParsedQuery, student: ParsedQuery) -> bool:
+    """Comparative M9 check: returns True when *any* nested block in the
+    student query has lost a correlation that the corresponding block in
+    the reference query carries.
+
+    The earlier absolute helper asked only "is there a correlation
+    somewhere?", which a complex query satisfies even after one of several
+    correlations is broken — a non-broken correlation at another nesting
+    level masks the loss. This check instead walks the reference and
+    student block chains in parallel, level by level, and compares the set
+    of ancestor-scope aliases each block references. If at any matching
+    level the student block references a proper subset of what the
+    reference block does, a correlation has been dropped at that level and
+    M9 is flagged. Checking every level (not only the innermost) catches
+    correlations broken in middle blocks of deeply nested division
+    queries, which a single-level check would miss.
+    """
+    base_chain = _innermost_block_chain(base)
+    student_chain = _innermost_block_chain(student)
+
+    # No nested structure to correlate — nothing to check.
+    if len(base_chain) < 2 or len(student_chain) < 2:
         return False
 
-    return _walk(parse)
+    # Compare level by level over the depth both chains share. Levels that
+    # exist in only one chain are not comparable and are skipped; the
+    # shared prefix is where a dropped correlation shows up as a shrunken
+    # ancestor-reference set.
+    common_depth = min(len(base_chain), len(student_chain))
+    for idx in range(1, common_depth):
+        base_refs = _block_ancestor_refs(base_chain, idx)
+        student_refs = _block_ancestor_refs(student_chain, idx)
+        if not base_refs:
+            # Reference block carries no correlation at this level — there
+            # is no requirement to violate here.
+            continue
+        if student_refs < base_refs:
+            # Student block references strictly fewer ancestor scopes than
+            # the reference block at the same level: correlation dropped.
+            return True
+    return False
+
+
+def _has_correlated_ref(parse: ParsedQuery) -> bool:
+    """
+    Absolute structural check, retained for callers that only have the
+    student query in hand: returns True when the innermost subquery block
+    references at least one alias from an enclosing scope.
+
+    This answers "does the innermost block carry *any* correlation?" — it
+    is intentionally permissive. Detecting a *partially* broken correlation
+    in a deeply nested query requires comparison against the reference and
+    is handled by `_correlation_scope_broken`. Queries with no subqueries
+    return False, preserving the original contract.
+    """
+    if not parse.subqueries or not parse.from_tables:
+        return False
+    chain = _innermost_block_chain(parse)
+    return len(_ancestor_aliases_referenced(chain)) > 0
 
 
 def _aggregate_in_where(parse: ParsedQuery) -> bool:
@@ -490,7 +612,10 @@ def _detect_division(base: ParsedQuery, student: ParsedQuery) -> List[str]:
     elif student.where_type in (None, "SIMPLE", "EXISTS"):
         found.append("MISSING_NOT_EXISTS")
 
-    if student.where_type == "NOT_EXISTS" and not _has_correlated_ref(student):
+    if student.where_type == "NOT_EXISTS" and (
+        not _has_correlated_ref(student)
+        or _correlation_scope_broken(base, student)
+    ):
         found.append("MISSING_CORRELATED_REF")
 
     if _has_hardcoded_threshold(student.having) or _has_hardcoded_threshold(student.where_clause):
@@ -561,7 +686,7 @@ def _detect_subquery(base: ParsedQuery, student: ParsedQuery) -> List[str]:
         elif student.where_type in ("SIMPLE", None):
             found.append("MISSING_NOT_EXISTS")
     if base.where_type in ("EXISTS", "NOT_EXISTS") and student.subqueries:
-        if not _has_correlated_ref(student):
+        if not _has_correlated_ref(student) or _correlation_scope_broken(base, student):
             found.append("MISSING_CORRELATED_REF")
     if base.where_clause and not student.where_clause:
         found.append("MISSING_WHERE")

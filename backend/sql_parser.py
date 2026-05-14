@@ -363,9 +363,43 @@ def _extract_subqueries(text: str) -> List[str]:
     return subs
 
 
+def _mask_nested_parens(text: str) -> str:
+    """Return text with everything inside parentheses (depth >= 1) replaced
+    by spaces, so only the outermost (depth-0) predicate text remains.
+
+    This lets WHERE-type classification inspect the *outermost* predicate
+    rather than being misled by keywords appearing inside subqueries. For
+    example, in `NOT IN (SELECT ... WHERE NOT EXISTS (...))`, only the
+    top-level `NOT IN` survives the mask; the inner `NOT EXISTS` is blanked.
+    Newlines are preserved so token boundaries are not destroyed.
+    """
+    out = []
+    depth = 0
+    for ch in text:
+        if ch == '(':
+            depth += 1
+            out.append(' ')
+        elif ch == ')':
+            if depth > 0:
+                depth -= 1
+            out.append(' ')
+        elif depth > 0:
+            out.append('\n' if ch == '\n' else ' ')
+        else:
+            out.append(ch)
+    return ''.join(out)
+
+
 def _detect_where_type(where_clause: str) -> str:
-    """Detect the primary pattern used in the WHERE clause."""
-    upper = where_clause.upper()
+    """Detect the primary pattern used in the WHERE clause.
+
+    Classification is performed on the *outermost* predicate only: any
+    text nested inside parentheses (i.e. subqueries) is masked out before
+    keyword matching. This ensures that a deeply nested NOT EXISTS does
+    not shadow a top-level NOT IN (and vice versa), which is required for
+    correct M3 (NOT_IN_vs_NOT_EXISTS) shape detection on nested queries.
+    """
+    upper = _mask_nested_parens(where_clause).upper()
     if 'NOT EXISTS' in upper:
         return 'NOT_EXISTS'
     elif 'NOT IN' in upper:

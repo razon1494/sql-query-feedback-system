@@ -54,13 +54,50 @@ def mut_exists_to_in(sql):
     return out if out != sql else None
 
 
+def _find_outermost_not_exists(sql):
+    """Return the (start, end) span of the first `NOT EXISTS (` token that
+    sits at parenthesis depth 0, or None if no depth-0 NOT EXISTS exists.
+
+    The M3 mutation (NOT EXISTS -> NOT IN) is only a *top-level* shape
+    change when the NOT EXISTS being replaced is the outermost predicate.
+    Replacing a NOT EXISTS that is nested inside another subquery does not
+    change the outer WHERE-type and therefore is not a valid M3 mutation;
+    such problems should be skipped rather than counted as detector misses.
+    """
+    depth = 0
+    for m in re.finditer(r'[()]|NOT\s+EXISTS\s*\(', sql, re.IGNORECASE):
+        tok = m.group(0)
+        if tok == '(':
+            depth += 1
+        elif tok == ')':
+            if depth > 0:
+                depth -= 1
+        else:  # matched "NOT EXISTS ("
+            if depth == 0:
+                # span covers "NOT EXISTS" but not the trailing "("
+                paren = m.end() - 1
+                return (m.start(), paren)
+            depth += 1  # the "(" consumed by this token opens a new level
+    return None
+
+
 def mut_notexists_to_notin(sql):
-    """M3 NOT_IN_vs_NOT_EXISTS — replace NOT EXISTS with NOT IN at the top level."""
-    if not re.search(r'\bNOT\s+EXISTS\b', sql, re.IGNORECASE):
+    """M3 NOT_IN_vs_NOT_EXISTS — replace the *outermost* NOT EXISTS with NOT IN.
+
+    Only applies when the base query has a genuine depth-0 NOT EXISTS
+    predicate. Problems whose outermost predicate is something else
+    (e.g. a plain EXISTS wrapping a nested NOT EXISTS) are skipped: the
+    mutation is not applicable there, so returning None keeps the M3
+    detection rate honest rather than penalizing the detector for a
+    mutation that never produced a top-level shape change.
+    """
+    span = _find_outermost_not_exists(sql)
+    if span is None:
         return None
-    # For division queries, replace outer NOT EXISTS with NOT IN
-    # We swap `NOT EXISTS (` to `1 NOT IN (SELECT 1 FROM …)` — coarse but triggers where_type.
-    out = re.sub(r'NOT\s+EXISTS\s*\(', '1 NOT IN (', sql, count=1, flags=re.IGNORECASE)
+    start, end = span
+    # Replace just the outermost "NOT EXISTS" with "1 NOT IN", leaving the
+    # trailing "(" and subquery body intact.
+    out = sql[:start] + '1 NOT IN' + sql[end:]
     return out if out != sql else None
 
 
