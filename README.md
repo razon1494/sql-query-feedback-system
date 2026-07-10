@@ -48,7 +48,8 @@ The system has a **special focus on relational division queries** — the hardes
 | **Misconception Detection** | Identifies patterns like IN-vs-NOT-EXISTS, missing HAVING, hardcoded thresholds |
 | **Graded Feedback** | Syntax 20% / Logic 30% / Results 40% / Edge Cases 10% |
 | **Alternate Solution Detection** | Recognizes structurally different but semantically correct queries |
-| **10 Problem Sets** | Division, JOIN, Aggregation, and Set Operation problems |
+| **30 Problem Sets** | Division, JOIN, Aggregation, Set Operation, Subquery, and NULL problems over a 7-table schema |
+| **External Validation** | Evaluated against the real Spider benchmark (20–29 foreign schemas) — see below |
 
 ---
 
@@ -64,6 +65,41 @@ The system has a **special focus on relational division queries** — the hardes
 | Misconception detection | — | — | — | **✓** |
 | Syntax validation | — | — | — | **✓** |
 | Context-augmented provenance | — | — | ✓ | Planned |
+
+---
+
+## External Validation on the Spider Benchmark
+
+The detector is evaluated against the real [Spider](https://yale-lily.github.io/spider)
+text-to-SQL benchmark — foreign schemas and data the system was never tuned on.
+The full pipeline, corpora, and reproduction instructions live in
+[`external/README.md`](external/README.md). Headline results:
+
+| Experiment | Corpus | Result |
+|---|---|---|
+| False positives (alternate-correct) | 357 execution-validated rewrites of Spider dev gold | **0.0% user-facing FPR** (11.8% raw shape-flag rate, all suppressed) |
+| Wrong-query detection | 748 literature-motivated corruptions, 20 schemas | **538/540 = 99.6%** detected (2 misses = documented uncorrelated-EXISTS gap) |
+| Division schema transfer | 53 authored division problems, 29 schemas | M8 53/53, M3 52/52, M9 53/53; alternate rewrites 0 FP |
+| Division scarcity scan | all 9,693 Spider queries | **0** universal-quantification queries in Spider (measured) |
+
+Key methodology points: corruption operators are defined from the empirical
+misconception literature (not from detector rules), every corpus entry is
+execution-validated on the real Spider database, latent (output-equivalent)
+corruptions are reported as skips rather than counted, and a blind
+human-annotation + Cohen's kappa harness validates the misconception labels.
+
+```bash
+# reproduce (after placing Spider under external/data/spider/ - see external/spider/download.py)
+python external/spider/ingest.py --split dev        # smoke test
+python external/spider/classify.py --split dev     # problem-type distribution
+python external/spider/gen_alternates.py           # FP experiment
+python external/spider/gen_wrong.py                # detection experiment
+python external/spider/gen_division.py --all-dbs   # division schema transfer
+python external/spider/division_scan.py            # division scarcity scan
+```
+
+All offline tests (no Spider download needed) run against a generated
+music-schema fixture: `python external/tests/test_phase*.py`.
 
 ---
 
@@ -107,6 +143,13 @@ sql-query-feedback-system/
 ├── database/
 │   └── init_db.py                ← Creates main.db + 5 edge-case databases on startup
 │
+├── external/                     ← Spider external-validation pipeline (see external/README.md)
+│   ├── harness/                  ← Schema-agnostic wrapper over the feedback pipeline
+│   ├── spider/                   ← Ingestion, classification, corpus generators, annotation/kappa
+│   ├── fixtures/                 ← Offline music-schema test fixture (no download needed)
+│   ├── tests/                    ← Runnable test suites for every phase
+│   └── data/                     ← Spider install + derived corpora (gitignored)
+│
 └── frontend/
     └── templates/
         └── index.html            ← Full single-file UI (7 tabs)
@@ -118,7 +161,7 @@ sql-query-feedback-system/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/problems` | List all 10 problems |
+| `GET` | `/api/problems` | List all 30 problems |
 | `GET` | `/api/problems/<id>` | Problem details + reference query |
 | `GET` | `/api/schema` | Database schema + sample rows |
 | `POST` | `/api/analyze` | **Full 6-step analysis pipeline** |
@@ -172,7 +215,7 @@ Save the file, restart the server — the problem appears automatically. **No ot
 
 ---
 
-## Problem Set (10 Problems)
+## Problem Set (10 of the 30 Problems)
 
 | # | Title | Type | Difficulty |
 |---|-------|------|------------|

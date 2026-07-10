@@ -32,3 +32,8 @@ Thumbs.db
 
 # Environment variables
 .env
+
+# Spider corpus (~1.4 GB) + all generated data artifacts — local only.
+external/data/
+# Generated test fixtures
+external/fixtures/mini_spider/
