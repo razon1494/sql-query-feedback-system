@@ -39,7 +39,7 @@ external/
 | 3.2 | Literature-motivated wrong-query corpus (`gen_wrong.py` + `annotation.py`) | ✅ 748 wrong queries / 419 golds / 20 DBs; detection 538/540 = 99.6%; uncorrelated-EXISTS gap probe 0/2 (documented miss); blind κ sheets generated — **human labeling pending** |
 | 3b | Bonus: harvest naturally-occurring errors from a text-to-SQL model | ⬜ |
 | 4 | Baseline comparison (`eval/run_baselines.py`) | ✅ output-only vs shape-only vs full two-tier on all external corpora (table below) |
-| 5 | Failure analysis + paper rewrite | ⬜ |
+| 5 | Failure analysis (`eval/failure_probes.py`) + paper rewrite | ✅ 12-probe suite, taxonomy F1–F5, 12/12 documented (2 probe-discovered limitations); drop-in LaTeX sections in `SQL_Feedback_System/external_sections.tex` — κ values pending human labeling |
 
 ## Baseline comparison (Phase 4)
 
