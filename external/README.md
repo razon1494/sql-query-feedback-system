@@ -38,8 +38,26 @@ external/
 | 3-DIV | Schema-transfer division eval (`gen_division.py` + `division_scan.py`) | ✅ 0 division shapes in all 9,693 Spider queries (measured); **53 authored problems over 29 foreign schemas** — M8 53/53, M3 52/52 (+1 latent skip), M9 53/53; alternate 53/53 equivalent, 0 FP |
 | 3.2 | Literature-motivated wrong-query corpus (`gen_wrong.py` + `annotation.py`) | ✅ 748 wrong queries / 419 golds / 20 DBs; detection 538/540 = 99.6%; uncorrelated-EXISTS gap probe 0/2 (documented miss); blind κ sheets generated — **human labeling pending** |
 | 3b | Bonus: harvest naturally-occurring errors from a text-to-SQL model | ⬜ |
-| 4 | Generalized eval runner + baselines (output-only, shape-only) | ⬜ |
+| 4 | Baseline comparison (`eval/run_baselines.py`) | ✅ output-only vs shape-only vs full two-tier on all external corpora (table below) |
 | 5 | Failure analysis + paper rewrite | ⬜ |
+
+## Baseline comparison (Phase 4)
+
+Three systems on the same external corpora (`python external/eval/run_baselines.py`):
+
+| System | Alt FPR | Wrong flagged | Wrong diagnosed | Latent flagged | Div FPR | Div diagnosed |
+|---|---|---|---|---|---|---|
+| Output-only autograder | 0.0% | 100.0% | **0.0%** | 0.0% | 0.0% | **0.0%** |
+| Shape-only classifier | **11.8%** | 99.6% | 99.6% | 100.0% | **100.0%** | 100.0% |
+| **Full two-tier system** | **0.0%** | 99.6% | **99.6%** | 0.0% | **0.0%** | **100.0%** |
+
+Reading: the output-only autograder never diagnoses (0% diagnosis by
+definition); the shape-only classifier diagnoses but false-flags 11.8% of
+correct Spider rewrites and 100% of correct division rewrites; the full
+system keeps the diagnosis rate while eliminating the false positives. The
+"latent flagged" column is the explicit trade-off: the filter suppresses
+output-equivalent latent bugs (0%) that the shape classifier would surface
+(100%) — the paper discusses this as the cost of a 0% user-facing FPR.
 
 ## Run the tests (no download required)
 

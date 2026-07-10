@@ -81,6 +81,7 @@ The full pipeline, corpora, and reproduction instructions live in
 | Wrong-query detection | 748 literature-motivated corruptions, 20 schemas | **538/540 = 99.6%** detected (2 misses = documented uncorrelated-EXISTS gap) |
 | Division schema transfer | 53 authored division problems, 29 schemas | M8 53/53, M3 52/52, M9 53/53; alternate rewrites 0 FP |
 | Division scarcity scan | all 9,693 Spider queries | **0** universal-quantification queries in Spider (measured) |
+| Baseline comparison | output-only vs shape-only vs two-tier, same corpora | two-tier keeps 99.6% diagnosis at 0% FPR; baselines trade one for the other |
 
 Key methodology points: corruption operators are defined from the empirical
 misconception literature (not from detector rules), every corpus entry is
