@@ -1,0 +1,60 @@
+{
+ "alternates": {
+  "n": 357,
+  "fpr": {
+   "output_only": 0.0,
+   "shape_only": 11.8,
+   "full_system": 0.0
+  },
+  "output_only_note": "0 by construction (corpus is output-equivalent)"
+ },
+ "wrong": {
+  "n_applied": 547,
+  "n_latent": 201,
+  "wrong_flagged": {
+   "output_only": 100.0,
+   "shape_only": 99.6,
+   "full_system": 99.6
+  },
+  "wrong_diagnosed": {
+   "output_only": 0.0,
+   "shape_only": 99.6,
+   "full_system": 99.6
+  },
+  "latent_flagged": {
+   "output_only": 0.0,
+   "shape_only": 100.0,
+   "full_system": 0.0
+  }
+ },
+ "division": {
+  "wrong": {
+   "n_applied": 158,
+   "n_latent": 1,
+   "wrong_flagged": {
+    "output_only": 100.0,
+    "shape_only": 100.0,
+    "full_system": 100.0
+   },
+   "wrong_diagnosed": {
+    "output_only": 0.0,
+    "shape_only": 100.0,
+    "full_system": 100.0
+   },
+   "latent_flagged": {
+    "output_only": 0.0,
+    "shape_only": 100.0,
+    "full_system": 0.0
+   }
+  },
+  "alternates": {
+   "n": 53,
+   "fpr": {
+    "output_only": 0.0,
+    "shape_only": 100.0,
+    "full_system": 0.0
+   },
+   "output_only_note": "0 by construction (corpus is output-equivalent)"
+  }
+ }
+}

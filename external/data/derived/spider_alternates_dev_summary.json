@@ -1,0 +1,33 @@
+{
+ "gold_processed": 1034,
+ "alternates_kept": 357,
+ "op_attempt": {
+  "join_to_comma": 347,
+  "dejoin_to_in": 67
+ },
+ "op_yield": {
+  "join_to_comma": 315,
+  "dejoin_to_in": 42
+ },
+ "user_facing_fp": 0,
+ "fpr_pct": 0.0,
+ "raw_flagged": 42,
+ "raw_flag_rate_pct": 11.76470588235294,
+ "by_type": {
+  "AGGREGATION": {
+   "n": 190,
+   "raw": 0,
+   "fp": 0
+  },
+  "JOIN": {
+   "n": 153,
+   "raw": 38,
+   "fp": 0
+  },
+  "SUBQUERY": {
+   "n": 14,
+   "raw": 4,
+   "fp": 0
+  }
+ }
+}

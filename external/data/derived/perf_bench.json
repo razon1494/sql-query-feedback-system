@@ -1,0 +1,13 @@
+{
+ "n_requests": 42,
+ "n_failed": 0,
+ "mean_ms": 7.7,
+ "median_ms": 7.7,
+ "p95_ms": 9.4,
+ "max_ms": 10.6,
+ "min_ms": 6.0,
+ "machine": "Intel64 Family 6 Model 170 Stepping 4, GenuineIntel / Windows 10",
+ "python": "3.11.9",
+ "timestamp": "2026-08-10T15:40:02",
+ "protocol": "Flask test client POST /api/analyze; every catalogue problem submitted as its own reference query and as a WHERE-dropped corruption; 10-request warm-up discarded."
+}

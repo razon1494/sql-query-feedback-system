@@ -319,5 +319,5 @@ This app is deployed on a **paid Render.com instance**:
 
 ## License
 
-This project is a PhD research prototype submitted to Dr. Hasan Jamil at the University of Idaho.  
+This project is a research prototype developed with Dr. Hasan Jamil, Department of Computer Science, University of Idaho.  
 © 2026 Mohammad Arifur Rahman. All rights reserved.

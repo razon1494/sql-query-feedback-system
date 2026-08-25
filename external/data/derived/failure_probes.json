@@ -1,0 +1,172 @@
+{
+ "probes": [
+  {
+   "id": "F1-cte",
+   "category": "F1_SYNTAX_COVERAGE",
+   "desc": "Correct answer written as a CTE (WITH clause)",
+   "outcome": "MISPARSE",
+   "expected": "MISPARSE",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": false,
+   "exec_error": "Only SELECT queries are allowed.",
+   "note": "Clause-level analyzer has no WITH grammar; parser rejects or misreads."
+  },
+  {
+   "id": "F1-window",
+   "category": "F1_SYNTAX_COVERAGE",
+   "desc": "Correct answer using a window function instead of GROUP BY",
+   "outcome": "OK",
+   "expected": "SPURIOUS_OR_OK",
+   "as_expected": true,
+   "detected": [],
+   "raw": [
+    "MISSING_HAVING",
+    "MISSING_GROUP_BY",
+    "CARTESIAN_PRODUCT"
+   ],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "Window functions are outside the shape grammar; outcome depends on filter."
+  },
+  {
+   "id": "F1-using",
+   "category": "F1_SYNTAX_COVERAGE",
+   "desc": "JOIN ... USING instead of ON",
+   "outcome": "OK",
+   "expected": "OK",
+   "as_expected": true,
+   "detected": [],
+   "raw": [
+    "MISSING_JOIN"
+   ],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "USING is executable; join extraction regex expects ON - may degrade shape info."
+  },
+  {
+   "id": "F1-derived",
+   "category": "F1_SYNTAX_COVERAGE",
+   "desc": "Correct answer via derived table in FROM",
+   "outcome": "OK",
+   "expected": "OK",
+   "as_expected": true,
+   "detected": [],
+   "raw": [
+    "MISSING_WHERE"
+   ],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "Derived tables parse loosely; filter should accept on equivalence."
+  },
+  {
+   "id": "F2-func-comma",
+   "category": "F2_PARSER_PRECISION",
+   "desc": "Function call renames output column (comma inside args)",
+   "outcome": "DEGRADED",
+   "expected": "DEGRADED",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": false,
+   "exec_error": null,
+   "note": "Result comparison keys on column NAMES: same data under a renamed header is judged non-equivalent, with no misconception label - column-name sensitivity of the output comparator (probe-discovered)."
+  },
+  {
+   "id": "F2-quoted-ident",
+   "category": "F2_PARSER_PRECISION",
+   "desc": "Double-quoted identifier in WHERE",
+   "outcome": "OK",
+   "expected": "OK",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "Quoted identifiers must not confuse the clause splitter."
+  },
+  {
+   "id": "F3-uncorr-exists",
+   "category": "F3_DETECTOR_GAPS",
+   "desc": "Uncorrelated EXISTS where reference uses IN (documented gap)",
+   "outcome": "DEGRADED",
+   "expected": "DEGRADED",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": false,
+   "exec_error": null,
+   "note": "M9 rule anchors on reference shape (base must be EXISTS/NOT EXISTS); wrongness is caught by execution only - no misconception label. Confirmed at corpus scale in Phase 3.2 (0/2)."
+  },
+  {
+   "id": "F3-weakened-where",
+   "category": "F3_DETECTOR_GAPS",
+   "desc": "WHERE predicate weakened (wrong literal), not dropped",
+   "outcome": "DEGRADED",
+   "expected": "DEGRADED",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": false,
+   "exec_error": null,
+   "note": "M1 fires only on MISSING where-clause; wrong-literal errors have no misconception category - execution divergence is the only signal."
+  },
+  {
+   "id": "F3-extra-join",
+   "category": "F3_DETECTOR_GAPS",
+   "desc": "Extraneous join multiplying duplicate rows (student adds a table)",
+   "outcome": "MISSED",
+   "expected": "MISSED",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "Double blindness (probe-discovered): MISSING_JOIN covers too-few tables only (too-many has no category), AND the set-semantics result comparison is duplicate-insensitive, so row multiplication is judged output-equivalent - the query passes as alternate-correct."
+  },
+  {
+   "id": "F4-left-latent",
+   "category": "F4_FILTER_BLINDNESS",
+   "desc": "LEFT JOIN wrong shape, output-equivalent under full FK coverage",
+   "outcome": "MISSED",
+   "expected": "MISSED",
+   "as_expected": true,
+   "detected": [],
+   "raw": [
+    "WRONG_JOIN_TYPE"
+   ],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "Every artist has an album in the fixture: outputs match, filter suppresses WRONG_JOIN_TYPE. Quantified at scale in Phase 3.2 (153/191 LEFT-join corruptions latent). Raw flag retained for research."
+  },
+  {
+   "id": "F5-notin-null",
+   "category": "F5_SEMANTIC_EDGE",
+   "desc": "NOT IN over subquery that can yield NULL (three-valued logic)",
+   "outcome": "MISSED",
+   "expected": "MISSED_OR_OK",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "Fixture album.artist_id has no NULLs: outputs match (latent). The division corpus catches this class via NULL-injected edges."
+  },
+  {
+   "id": "F5-union-all",
+   "category": "F5_SEMANTIC_EDGE",
+   "desc": "UNION ALL instead of UNION (duplicate semantics)",
+   "outcome": "MISSED",
+   "expected": "MISSED_OR_OK",
+   "as_expected": true,
+   "detected": [],
+   "raw": [],
+   "equivalent": true,
+   "exec_error": null,
+   "note": "Set-comparison of results is duplicate-insensitive; UNION-vs-UNION ALL divergence is invisible unless the branches overlap. Detector normalizes ' ALL' away by design."
+  }
+ ],
+ "n": 12,
+ "unexpected": 0
+}

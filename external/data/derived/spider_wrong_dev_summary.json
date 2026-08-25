@@ -1,0 +1,74 @@
+{
+ "per_op": {
+  "drop_where": {
+   "generated": 235,
+   "applied": 211,
+   "detected": 211,
+   "skipped": 24,
+   "exec_err": 0,
+   "misses": []
+  },
+  "inner_to_left": {
+   "generated": 191,
+   "applied": 38,
+   "detected": 38,
+   "skipped": 153,
+   "exec_err": 0,
+   "misses": []
+  },
+  "join_to_cartesian": {
+   "generated": 158,
+   "applied": 139,
+   "detected": 139,
+   "skipped": 19,
+   "exec_err": 0,
+   "misses": []
+  },
+  "drop_group_by": {
+   "generated": 83,
+   "applied": 83,
+   "detected": 83,
+   "skipped": 0,
+   "exec_err": 29,
+   "misses": []
+  },
+  "having_to_where": {
+   "generated": 37,
+   "applied": 37,
+   "detected": 37,
+   "skipped": 0,
+   "exec_err": 37,
+   "misses": []
+  },
+  "swap_set_op": {
+   "generated": 42,
+   "applied": 37,
+   "detected": 37,
+   "skipped": 5,
+   "exec_err": 0,
+   "misses": []
+  },
+  "in_to_uncorrelated_exists": {
+   "generated": 2,
+   "applied": 2,
+   "detected": 0,
+   "skipped": 0,
+   "exec_err": 0,
+   "misses": [
+    {
+     "db_id": "network_1",
+     "detected": [],
+     "raw": []
+    },
+    {
+     "db_id": "dog_kennels",
+     "detected": [],
+     "raw": []
+    }
+   ]
+  }
+ },
+ "corpus_size": 748,
+ "golds_touched": 419,
+ "dbs": 20
+}

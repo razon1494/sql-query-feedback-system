@@ -1,0 +1,53 @@
+{
+ "problems": 6,
+ "dbs": 3,
+ "gold_self_clean": 6,
+ "per_key": {
+  "IN_FOR_DIVISION": {
+   "applied": 6,
+   "detected": 6,
+   "skipped": 0,
+   "misses": []
+  },
+  "NOT_IN_vs_NOT_EXISTS": {
+   "applied": 6,
+   "detected": 3,
+   "skipped": 0,
+   "misses": [
+    {
+     "db_id": "dog_kennels",
+     "detected": [],
+     "raw": [
+      "NOT_IN_vs_NOT_EXISTS"
+     ]
+    },
+    {
+     "db_id": "dog_kennels",
+     "detected": [],
+     "raw": [
+      "NOT_IN_vs_NOT_EXISTS"
+     ]
+    },
+    {
+     "db_id": "real_estate_properties",
+     "detected": [],
+     "raw": [
+      "NOT_IN_vs_NOT_EXISTS"
+     ]
+    }
+   ]
+  },
+  "MISSING_CORRELATED_REF": {
+   "applied": 6,
+   "detected": 6,
+   "skipped": 0,
+   "misses": []
+  }
+ },
+ "alt": {
+  "n": 6,
+  "equivalent": 6,
+  "raw_flagged": 6,
+  "fp": 0
+ }
+}

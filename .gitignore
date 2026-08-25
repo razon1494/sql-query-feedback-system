@@ -33,7 +33,19 @@ Thumbs.db
 # Environment variables
 .env
 
-# Spider corpus (~1.4 GB) + all generated data artifacts — local only.
-external/data/
+# Spider corpus (~1.4 GB) and the large generated corpora are local only.
+# The small summary artifacts that back every number in the paper ARE tracked,
+# so the results can be checked without downloading Spider (~26 KB total).
+external/data/*
+!external/data/derived/
+external/data/derived/*
+!external/data/derived/baseline_comparison.json
+!external/data/derived/division_summary_all.json
+!external/data/derived/division_summary_dev.json
+!external/data/derived/failure_probes.json
+!external/data/derived/in_domain_alternates.json
+!external/data/derived/perf_bench.json
+!external/data/derived/spider_alternates_dev_summary.json
+!external/data/derived/spider_wrong_dev_summary.json
 # Generated test fixtures
 external/fixtures/mini_spider/

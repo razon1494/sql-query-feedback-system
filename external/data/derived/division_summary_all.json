@@ -1,0 +1,31 @@
+{
+ "problems": 53,
+ "dbs": 29,
+ "gold_self_clean": 53,
+ "per_key": {
+  "IN_FOR_DIVISION": {
+   "applied": 53,
+   "detected": 53,
+   "skipped": 0,
+   "misses": []
+  },
+  "NOT_IN_vs_NOT_EXISTS": {
+   "applied": 52,
+   "detected": 52,
+   "skipped": 1,
+   "misses": []
+  },
+  "MISSING_CORRELATED_REF": {
+   "applied": 53,
+   "detected": 53,
+   "skipped": 0,
+   "misses": []
+  }
+ },
+ "alt": {
+  "n": 53,
+  "equivalent": 53,
+  "raw_flagged": 53,
+  "fp": 0
+ }
+}

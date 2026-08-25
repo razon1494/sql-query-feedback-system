@@ -1,0 +1,327 @@
+{
+ "candidates": 25,
+ "admitted": 19,
+ "rejected": 6,
+ "raw_flagged": 8,
+ "raw_flag_rate_pct": 42.10526315789474,
+ "user_facing_fp": 0,
+ "user_facing_fp_pct": 0.0,
+ "records": [
+  {
+   "problem_id": "div_db_courses",
+   "type": "DIVISION",
+   "alt_sql": "SELECT s.StuID, s.Name FROM Students s JOIN Takes t ON s.StuID = t.StuID JOIN Courses c ON t.CourseID = c.CourseID WHERE c.\"Group\" = 'DB' GROUP BY s.StuID, s.Name HAVING COUNT(DISTINCT c.CourseID) = (SELECT COUNT(*) FROM Courses WHERE \"Group\" = 'DB');",
+   "equivalent": true,
+   "edges_ok": false,
+   "raw": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "detected": [],
+   "unsupported": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "div_all_cs_courses",
+   "type": "DIVISION",
+   "alt_sql": "SELECT s.StuID, s.Name FROM Students s JOIN Takes t ON s.StuID = t.StuID JOIN Courses c ON t.CourseID = c.CourseID WHERE s.Major = 'CS' AND c.\"Group\" = 'CS' GROUP BY s.StuID, s.Name HAVING COUNT(DISTINCT c.CourseID) = (SELECT COUNT(*) FROM Courses WHERE \"Group\" = 'CS');",
+   "equivalent": true,
+   "edges_ok": false,
+   "raw": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "detected": [],
+   "unsupported": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "div_instructor_all_db",
+   "type": "DIVISION",
+   "alt_sql": "SELECT i.InstID, i.Name FROM Instructors i JOIN Teaches tc ON i.InstID = tc.InstID JOIN Courses c ON tc.CourseID = c.CourseID WHERE c.\"Group\" = 'DB' GROUP BY i.InstID, i.Name HAVING COUNT(DISTINCT c.CourseID) = (SELECT COUNT(*) FROM Courses WHERE \"Group\" = 'DB');",
+   "equivalent": true,
+   "edges_ok": false,
+   "raw": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "detected": [],
+   "unsupported": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "div_students_all_math",
+   "type": "DIVISION",
+   "alt_sql": "SELECT s.StuID, s.Name FROM Students s JOIN Takes t ON s.StuID = t.StuID JOIN Courses c ON t.CourseID = c.CourseID WHERE c.\"Group\" = 'Math' GROUP BY s.StuID, s.Name HAVING COUNT(DISTINCT c.CourseID) = (SELECT COUNT(*) FROM Courses WHERE \"Group\" = 'Math');",
+   "equivalent": false,
+   "edges_ok": false,
+   "raw": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "detected": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "div_instructor_all_cs",
+   "type": "DIVISION",
+   "alt_sql": "SELECT i.InstID, i.Name FROM Instructors i JOIN Teaches tc ON i.InstID = tc.InstID JOIN Courses c ON tc.CourseID = c.CourseID WHERE c.\"Group\" = 'CS' GROUP BY i.InstID, i.Name HAVING COUNT(DISTINCT c.CourseID) = (SELECT COUNT(*) FROM Courses WHERE \"Group\" = 'CS');",
+   "equivalent": true,
+   "edges_ok": false,
+   "raw": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "detected": [],
+   "unsupported": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "div_dept_all_courses",
+   "type": "DIVISION",
+   "alt_sql": "SELECT s.StuID, s.Name FROM Students s JOIN Takes t ON s.StuID = t.StuID JOIN Courses c ON t.CourseID = c.CourseID WHERE c.DeptID = 'D1' GROUP BY s.StuID, s.Name HAVING COUNT(DISTINCT c.CourseID) = (SELECT COUNT(*) FROM Courses WHERE DeptID = 'D1');",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "MISSING_NOT_EXISTS"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "div_instructor_all_prereqs",
+   "type": "DIVISION",
+   "alt_sql": "SELECT i.InstID, i.Name FROM Instructors i JOIN Teaches tc ON i.InstID = tc.InstID WHERE tc.CourseID IN (SELECT p.PrereqID FROM Prerequisites p WHERE p.CourseID = 'CS460') GROUP BY i.InstID, i.Name HAVING COUNT(DISTINCT tc.CourseID) = (SELECT COUNT(DISTINCT p.PrereqID) FROM Prerequisites p WHERE p.CourseID = 'CS460');",
+   "equivalent": true,
+   "edges_ok": false,
+   "raw": [
+    "IN_FOR_DIVISION"
+   ],
+   "detected": [
+    "IN_FOR_DIVISION"
+   ],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "join_cs360",
+   "type": "JOIN",
+   "alt_sql": "SELECT s.StuID, s.Name FROM Students s WHERE s.StuID IN (SELECT t.StuID FROM Takes t WHERE t.CourseID = 'CS360');",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "MISSING_JOIN"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "join_cs360",
+   "type": "JOIN",
+   "alt_sql": "SELECT s.StuID, s.Name FROM Students s, Takes t WHERE s.StuID = t.StuID AND t.CourseID = 'CS360';",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "join_instructor_courses",
+   "type": "JOIN",
+   "alt_sql": "SELECT i.Name AS InstructorName, c.Title AS CourseTitle FROM Instructors i, Teaches tc, Courses c WHERE i.InstID = tc.InstID AND tc.CourseID = c.CourseID ORDER BY i.Name;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "join_student_grades",
+   "type": "JOIN",
+   "alt_sql": "SELECT s.Name AS StudentName, c.Title AS CourseTitle, t.Grade FROM Students s, Takes t, Courses c WHERE s.StuID = t.StuID AND t.CourseID = c.CourseID ORDER BY s.Name, c.Title;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "join_four_credit_courses",
+   "type": "JOIN",
+   "alt_sql": "SELECT DISTINCT s.StuID, s.Name, c.Title FROM Students s, Takes t, Courses c WHERE s.StuID = t.StuID AND t.CourseID = c.CourseID AND c.Credits = 4 ORDER BY s.Name, c.Title;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "join_students_and_instructors",
+   "type": "JOIN",
+   "alt_sql": "SELECT DISTINCT s.Name AS StudentName, c.Title AS CourseTitle, i.Name AS InstructorName FROM Students s, Takes t, Courses c, Teaches tc, Instructors i WHERE s.StuID = t.StuID AND t.CourseID = c.CourseID AND c.CourseID = tc.CourseID AND tc.InstID = i.InstID;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "agg_multi_course",
+   "type": "AGGREGATION",
+   "alt_sql": "SELECT s.StuID, s.Name, COUNT(t.CourseID) AS CourseCount FROM Students s, Takes t WHERE s.StuID = t.StuID GROUP BY s.StuID, s.Name HAVING COUNT(t.CourseID) > 1;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "agg_avg_credits",
+   "type": "AGGREGATION",
+   "alt_sql": "SELECT s.StuID, s.Name, AVG(c.Credits) AS AvgCredits FROM Students s, Takes t, Courses c WHERE s.StuID = t.StuID AND t.CourseID = c.CourseID GROUP BY s.StuID, s.Name;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "agg_enrollment_per_course",
+   "type": "AGGREGATION",
+   "alt_sql": "SELECT c.CourseID, c.Title, COUNT(t.StuID) AS EnrollmentCount FROM Courses c, Takes t WHERE c.CourseID = t.CourseID GROUP BY c.CourseID, c.Title ORDER BY EnrollmentCount DESC;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "agg_popular_courses",
+   "type": "AGGREGATION",
+   "alt_sql": "SELECT c.CourseID, c.Title, COUNT(t.StuID) AS EnrollmentCount FROM Courses c, Takes t WHERE c.CourseID = t.CourseID GROUP BY c.CourseID, c.Title HAVING COUNT(t.StuID) > 2 ORDER BY EnrollmentCount DESC;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "set_no_db",
+   "type": "SET_OP",
+   "alt_sql": "SELECT StuID, Name FROM Students WHERE StuID NOT IN ( SELECT t.StuID FROM Takes t JOIN Courses c ON t.CourseID = c.CourseID WHERE c.\"Group\" = 'DB');",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "MISSING_SET_OP"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "set_union_cs_db",
+   "type": "SET_OP",
+   "alt_sql": "SELECT DISTINCT s.StuID, s.Name FROM Students s JOIN Takes t ON s.StuID = t.StuID JOIN Courses c ON t.CourseID = c.CourseID WHERE c.\"Group\" IN ('CS', 'DB');",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "MISSING_SET_OP"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "set_intersect_cs_and_db",
+   "type": "SET_OP",
+   "alt_sql": "SELECT DISTINCT s.StuID, s.Name FROM Students s WHERE s.StuID IN (SELECT t.StuID FROM Takes t JOIN Courses c ON t.CourseID = c.CourseID WHERE c.\"Group\" = 'CS') AND s.StuID IN (SELECT t.StuID FROM Takes t JOIN Courses c ON t.CourseID = c.CourseID WHERE c.\"Group\" = 'DB');",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "MISSING_SET_OP"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "set_except_instructors_no_db",
+   "type": "SET_OP",
+   "alt_sql": "SELECT InstID, Name FROM Instructors WHERE InstID NOT IN ( SELECT tc.InstID FROM Teaches tc JOIN Courses c ON tc.CourseID = c.CourseID WHERE c.\"Group\" = 'DB');",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "MISSING_SET_OP"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "sub_above_avg_credits",
+   "type": "SUBQUERY",
+   "alt_sql": "SELECT c.CourseID, c.Title, c.Credits FROM Courses c, (SELECT AVG(Credits) AS a FROM Courses) m WHERE c.Credits > m.a;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "CARTESIAN_PRODUCT"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "sub_in_db_courses",
+   "type": "SUBQUERY",
+   "alt_sql": "SELECT DISTINCT s.StuID, s.Name FROM Students s JOIN Takes t ON s.StuID = t.StuID JOIN Courses c ON t.CourseID = c.CourseID WHERE c.\"Group\" = 'DB';",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "sub_exists_four_credit",
+   "type": "SUBQUERY",
+   "alt_sql": "SELECT s.StuID, s.Name FROM Students s WHERE s.StuID IN ( SELECT t.StuID FROM Takes t JOIN Courses c ON t.CourseID = c.CourseID WHERE c.Credits = 4);",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [
+    "IN_vs_EXISTS",
+    "MISSING_CORRELATED_REF"
+   ],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  },
+  {
+   "problem_id": "null_no_grade",
+   "type": "NULL",
+   "alt_sql": "SELECT s.StuID, s.Name, t.CourseID FROM Students s, Takes t WHERE s.StuID = t.StuID AND t.Grade IS NULL;",
+   "equivalent": true,
+   "edges_ok": true,
+   "raw": [],
+   "detected": [],
+   "unsupported": [],
+   "student_exec_error": null
+  }
+ ]
+}
