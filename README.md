@@ -11,8 +11,7 @@
 
 **🔗 [https://sql-query-feedback-system.onrender.com](https://sql-query-feedback-system.onrender.com)**
 
-> ⏳ **Please allow 30–60 seconds on first load.**
-> This app is hosted on Render's free tier, which automatically spins down the server after a period of inactivity to save resources. When you visit the link, the server wakes up and initializes the database — this takes about 30–60 seconds. Once loaded, the system runs at full speed. Thank you for your patience!
+> Always on. The service runs on a paid Render instance, so there is no cold start and no waiting — the link responds immediately.
 
 ---
 
@@ -26,7 +25,7 @@ The system has a **special focus on relational division queries** — the hardes
 
 ## 🚀 Quick Demo (Try This First)
 
-1. Open **[https://sql-query-feedback-system.onrender.com](https://sql-query-feedback-system.onrender.com)** *(wait 30–60 seconds if loading)*
+1. Open **[https://sql-query-feedback-system.onrender.com](https://sql-query-feedback-system.onrender.com)**
 2. Select **"Division: Students Who Took ALL DB Courses"** in the left sidebar
 3. Click **"Load Wrong Answer"**
 4. Click **▶ Analyze Query**
@@ -47,6 +46,7 @@ The system has a **special focus on relational division queries** — the hardes
 | **Edge Case Testing** | 5 specialized databases (empty courses, partial match, all enrolled, etc.) |
 | **Misconception Detection** | Identifies patterns like IN-vs-NOT-EXISTS, missing HAVING, hardcoded thresholds |
 | **Graded Feedback** | Syntax 20% / Logic 30% / Results 40% / Edge Cases 10% |
+| **Evidence-Gated Diagnosis** | A diagnosis is released only when execution exhibits the effect that diagnosis specifically predicts, not merely that the query is wrong |
 | **Alternate Solution Detection** | Recognizes structurally different but semantically correct queries |
 | **30 Problem Sets** | Division, JOIN, Aggregation, Set Operation, Subquery, and NULL problems over a 7-table schema |
 | **External Validation** | Evaluated against the real Spider benchmark (20–29 foreign schemas) — see below |
@@ -78,16 +78,18 @@ The full pipeline, corpora, and reproduction instructions live in
 | Experiment | Corpus | Result |
 |---|---|---|
 | False positives (alternate-correct) | 357 execution-validated rewrites of Spider dev gold | **0.0% user-facing FPR** (11.8% raw shape-flag rate, all suppressed) |
-| Wrong-query detection | 748 literature-motivated corruptions, 20 schemas | **538/540 = 99.6%** detected (2 misses = documented uncorrelated-EXISTS gap) |
+| Wrong-query detection | 748 literature-motivated corruptions, 20 schemas | **545/547 = 99.6%** detected (2 misses = documented uncorrelated-EXISTS gap) |
+| Attribution precision | same 547 diverging corruptions | **93.5% -> 99.8%** once release is gated on each diagnosis's predicted effect |
 | Division schema transfer | 53 authored division problems, 29 schemas | M8 53/53, M3 52/52, M9 53/53; alternate rewrites 0 FP |
-| Division scarcity scan | all 9,693 Spider queries | **0** universal-quantification queries in Spider (measured) |
+| Division scarcity scan | all 9,693 Spider queries | **no `EXISTS` in any form**, zero division-by-counting idioms, zero `IS NULL` filters (measured) |
 | Baseline comparison | output-only vs shape-only vs two-tier, same corpora | two-tier keeps 99.6% diagnosis at 0% FPR; baselines trade one for the other |
 
 Key methodology points: corruption operators are defined from the empirical
 misconception literature (not from detector rules), every corpus entry is
-execution-validated on the real Spider database, latent (output-equivalent)
-corruptions are reported as skips rather than counted, and a blind
-human-annotation + Cohen's kappa harness validates the misconception labels.
+execution-validated on the real Spider database, and latent
+(output-equivalent) corruptions are reported as skips rather than counted.
+No inter-rater agreement is claimed: the emitted labels have not been
+validated against independent human annotation, which remains future work.
 
 ```bash
 # reproduce (after placing Spider under external/data/spider/ - see external/spider/download.py)
@@ -95,8 +97,21 @@ python external/spider/ingest.py --split dev        # smoke test
 python external/spider/classify.py --split dev     # problem-type distribution
 python external/spider/gen_alternates.py           # FP experiment
 python external/spider/gen_wrong.py                # detection experiment
-python external/spider/gen_division.py --all-dbs   # division schema transfer
+python external/spider/gen_division.py --all-dbs --per-db 3   # division schema transfer
 python external/spider/division_scan.py            # division scarcity scan
+python external/eval/run_baselines.py              # Table 2 baseline comparison
+python external/eval/failure_probes.py             # 12-probe failure suite
+```
+
+> `--per-db 3` is required to reproduce the published 53-problem division corpus.
+> The command-line default of 2 yields 44 problems.
+
+In-domain checks need no Spider download:
+
+```bash
+python eval_detection_rates.py                     # 73/73 single-misconception mutations
+python eval_false_positives.py                     # 30 reference queries, 0 flags
+python external/eval/in_domain_alternates.py       # 19 alternates: 8 raw, 0 user-facing
 ```
 
 All offline tests (no Spider download needed) run against a generated
@@ -146,7 +161,8 @@ sql-query-feedback-system/
 │
 ├── external/                     ← Spider external-validation pipeline (see external/README.md)
 │   ├── harness/                  ← Schema-agnostic wrapper over the feedback pipeline
-│   ├── spider/                   ← Ingestion, classification, corpus generators, annotation/kappa
+│   ├── spider/                   ← Ingestion, classification, corpus generators
+│   ├── eval/                     ← Baselines, failure probes, in-domain alternates
 │   ├── fixtures/                 ← Offline music-schema test fixture (no download needed)
 │   ├── tests/                    ← Runnable test suites for every phase
 │   └── data/                     ← Spider install + derived corpora (gitignored)
@@ -259,7 +275,9 @@ Student Query
      ▼
 ⑥ FEEDBACK ─────────── Graded report (feedback_generator.py)
                         Syntax / Logic / Results / Edge Cases
-                        Misconception detection + fix suggestions
+                        Structural tier PROPOSES a diagnosis; the evidence
+                        gate RELEASES it only if the observed residual
+                        matches what that diagnosis predicts
 ```
 
 ---
@@ -282,7 +300,7 @@ This prototype implements ideas from the following papers, all referenced in the
 |-------|-----------|
 | Backend | Python 3.10+, Flask 3.x |
 | Production Server | Gunicorn |
-| Hosting | Render.com (free tier) |
+| Hosting | Render.com (paid instance, always on) |
 | Database | SQLite (via Python stdlib `sqlite3`) |
 | SQL Parser | Custom-built (Python `re`, no external parser needed) |
 | Frontend | Vanilla HTML/CSS/JS (zero npm dependencies) |
@@ -292,17 +310,14 @@ This prototype implements ideas from the following papers, all referenced in the
 
 ## Deployment Notes
 
-This app is deployed on **Render.com free tier**:
-- ✅ Free hosting with public HTTPS URL
+This app is deployed on a **paid Render.com instance**:
+- ✅ Public HTTPS URL, always on — no spin-down, no cold start
 - ✅ Auto-deploys on every `git push` to `main`
-- ⚠️ Spins down after 15 minutes of inactivity — first visit after sleep takes ~30–60 seconds to wake up
-- ⚠️ SQLite database is re-created on each deploy (stateless — all data is seeded from `init_db.py`)
-
-To upgrade to always-on hosting, Render's paid tier starts at $7/month.
+- ℹ️ SQLite databases are re-created on each deploy (stateless — all data is seeded from `init_db.py`)
 
 ---
 
 ## License
 
 This project is a PhD research prototype submitted to Dr. Hasan Jamil at the University of Idaho.  
-© 2025 Mohammad Arifur Rahman. All rights reserved.
+© 2026 Mohammad Arifur Rahman. All rights reserved.
