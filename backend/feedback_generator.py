@@ -771,8 +771,10 @@ def _detect_misconceptions(base: ParsedQuery, student: ParsedQuery,
         if not pattern:
             continue
         out.append({
-            "key":     k,
-            "penalty": MISCONCEPTION_PENALTIES.get(k, 5),
+            "key":      k,
+            "penalty":  MISCONCEPTION_PENALTIES.get(k, 5),
+            "predicts": MISCONCEPTION_PREDICTS.get(
+                k, "the result would differ from the reference"),
             **pattern,
         })
     return out
@@ -973,6 +975,29 @@ def _ev_any_divergence(ev):
     available. Recorded explicitly so the weaker gate is visible, not implied.
     """
     return ev.diverges
+
+
+# Human-readable form of each rule's predicted effect. This is the same content
+# as MISCONCEPTION_EVIDENCE below, phrased for a student rather than for code, so
+# the interface can say *why* a diagnosis was released rather than only naming it.
+MISCONCEPTION_PREDICTS = {
+    "MISSING_WHERE":          "rows the reference excludes would appear in your result",
+    "MISSING_HAVING":         "groups the reference filters out would appear in your result",
+    "WRONG_JOIN_TYPE":        "rows the reference excludes would appear in your result",
+    "MISSING_JOIN":           "rows the reference excludes would appear in your result",
+    "CARTESIAN_PRODUCT":      "rows the reference excludes would appear in your result",
+    "IN_vs_EXISTS":           "rows the reference excludes would appear in your result",
+    "HAVING_vs_WHERE":        "the database engine would reject the query outright",
+    "MISSING_GROUP_BY":       "the engine would reject the query, or it would collapse to a single group where the reference returns many",
+    "MISSING_NOT_EXISTS":     "the result would be all-or-nothing: every candidate row qualifies, or none does",
+    "MISSING_CORRELATED_REF": "the result would be all-or-nothing: every candidate row qualifies, or none does",
+    "NOT_IN_vs_NOT_EXISTS":   "a NULL-bearing instance would lose rows the reference keeps",
+    "NULL_EQUALITY":          "the predicate would eliminate every row",
+    "IN_FOR_DIVISION":        "a returned row would be missing a required element of the divisor set",
+    "MISSING_SET_OP":         "the result would differ from the reference",
+    "WRONG_SET_OP":           "the result would differ from the reference",
+    "HARDCODED_THRESHOLD":    "the result would differ from the reference",
+}
 
 
 MISCONCEPTION_EVIDENCE = {

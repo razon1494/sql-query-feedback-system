@@ -315,6 +315,16 @@ tr.match td{background:#f0fdf4}
 @media(max-width:1100px){
   .q-row,.ast-grid,.edge-grid,.schema-grid{grid-template-columns:1fr}
 }
+
+    /* Evidence-gate additions */
+    .misc-why{margin:6px 0 8px;padding:8px 10px;border-left:3px solid var(--accent,#6366f1);
+              background:#f5f3ff;border-radius:0 6px 6px 0;font-size:13px;line-height:1.5;color:#3730a3}
+    .withheld-block{margin-top:18px;padding:14px;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc}
+    .withheld-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .withheld-label{font-weight:600;font-size:14px;color:#475569}
+    .withheld-note{margin-top:8px;font-size:13px;line-height:1.55;color:#64748b}
+    .withheld-card{margin-top:10px;background:#fff;opacity:.85}
+    .withheld-card .misc-why{border-left-color:#94a3b8;background:#f1f5f9;color:#475569}
 </style>
 </head>
 <body>
@@ -860,7 +870,7 @@ function renderAll(d) {
   renderAST(d.parsing);
   renderProvenance(d.provenance);
   renderEdgeCases(d.edge_cases);
-  renderMisconceptions(d.feedback.misconceptions);
+  renderMisconceptions(d.feedback.misconceptions, d.feedback.unsupported_misconceptions);
   // Update Feedback button preview with score
   const preview = document.getElementById('ns-score-preview');
   if (preview) {
@@ -1119,29 +1129,71 @@ function renderEdgeCases(cases) {
   `).join('');
 }
 
-function renderMisconceptions(misc) {
-  if (!misc||!misc.length) {
-    document.getElementById('misc-content').innerHTML = `<div class="misc-card"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
-    return;
-  }
-  document.getElementById('misc-content').innerHTML = misc.map(m => `
+function renderMisconceptions(misc, withheld) {
+  const rel = misc || [];
+  const wh  = withheld || [];
+  let html = '';
+
+  if (!rel.length) {
+    html += `<div class="misc-card"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
+  } else {
+    html += rel.map(m => `
     <div class="misc-card">
       <div class="misc-icon">⚠️</div>
       <div>
         <div class="misc-title">${esc(m.title)}</div>
         <div class="misc-desc">${esc(m.description)}</div>
+        ${m.predicts?`<div class="misc-why"><b>Why you are seeing this:</b> this diagnosis predicts that ${esc(m.predicts)} — and the evidence shows exactly that. It is not reported merely because the query is wrong.</div>`:''}
         <div class="misc-fix">💡 ${esc(m.fix)}</div>
         ${m.reference?`<div class="fb-ref">📚 ${esc(m.reference)}</div>`:''}
       </div>
     </div>
   `).join('') +
-  `<div class="misc-card" style="background:#f0fdf4;border:1px solid #86efac">
+    `<div class="misc-card" style="background:#f0fdf4;border:1px solid #86efac">
     <div class="misc-icon">✅</div>
     <div>
       <div class="misc-title" style="color:var(--good)">No further misconceptions detected</div>
       <div class="misc-desc">All other SQL concepts in your query appear to be correctly understood.</div>
     </div>
   </div>`;
+  }
+
+  if (wh.length) {
+    const one = wh.length === 1;
+    html += `
+    <div class="withheld-block">
+      <div class="withheld-head">
+        <span class="withheld-label">🔒 Withheld by the evidence gate (${wh.length})</span>
+        <button class="btn btn-secondary btn-sm" id="withheld-btn" onclick="toggleWithheld()">Show</button>
+      </div>
+      <div class="withheld-note">
+        The structural analyser proposed ${one?'this':'these'}, but the gate did not release
+        ${one?'it':'them'} to the student: the execution evidence did not show the effect
+        ${one?'it predicts':'they predict'}. Shown here for the instructor only.
+      </div>
+      <div id="withheld-body" style="display:none">
+        ${wh.map(m => `
+        <div class="misc-card withheld-card">
+          <div class="misc-icon">🔒</div>
+          <div>
+            <div class="misc-title">${esc(m.title)}</div>
+            ${m.predicts?`<div class="misc-why"><b>Expected but not observed:</b> ${esc(m.predicts)}.</div>`:''}
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('misc-content').innerHTML = html;
+}
+
+function toggleWithheld() {
+  const body = document.getElementById('withheld-body');
+  const btn  = document.getElementById('withheld-btn');
+  if (!body) return;
+  const showing = body.style.display !== 'none';
+  body.style.display = showing ? 'none' : 'block';
+  if (btn) btn.textContent = showing ? 'Show' : 'Hide';
 }
 
 // ─── Provenance student filter ───────────────────────
