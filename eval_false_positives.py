@@ -26,9 +26,9 @@ def main():
             false_positives += 1
             details.append((p["id"], p["type"], [m["key"] for m in mis]))
 
-    print("═══════════════════════════════════════════════════════════════════")
+    print("===================================================================")
     print(" FALSE-POSITIVE CHECK (correct query = student query)")
-    print("═══════════════════════════════════════════════════════════════════")
+    print("===================================================================")
     print(f"Problems tested  : {total}")
     print(f"False positives  : {false_positives}")
     print(f"Clean detections : {total - false_positives}")
@@ -38,7 +38,8 @@ def main():
         for pid, ptype, keys in details:
             print(f"  {pid:<40} [{ptype}]  keys={keys}")
     else:
-        print("✓ All 25 base queries pass through clean — no false positives.")
+        print("[OK] All %d base queries pass through clean -- no false positives."
+              % total)
 
 
 if __name__ == "__main__":

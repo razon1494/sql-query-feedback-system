@@ -8,6 +8,7 @@ import re
 import time
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
+from collections import Counter
 
 DB_DIR = os.path.join(os.path.dirname(__file__), '..', 'database')
 MAIN_DB = os.path.join(DB_DIR, 'main.db')
@@ -161,42 +162,68 @@ def execute_on_all_edge_dbs(sql: str) -> Dict[str, ExecutionResult]:
 #  COMPARISON
 # ══════════════════════════════════════════════════════════════════════
 
-def _row_key(row: Dict) -> str:
-    """Canonical string key for a row (for set comparison)."""
-    return str(sorted((k.upper(), str(v).upper()) for k, v in row.items()))
+def _row_key(row: Dict) -> Tuple:
+    """Canonical key for a row: its values, in column order.
+
+    Column *names* are deliberately excluded. A correct query that aliases a
+    column returns the same data under a different header, and keying on
+    headers judged that non-equivalent, so an otherwise valid rewrite could
+    never be admitted. Position is retained, because the order of the SELECT
+    list is part of the answer even though the names are not.
+    """
+    return tuple(str(v).upper() for v in row.values())
 
 
 def compare_results(base: ExecutionResult, student: ExecutionResult) -> ComparisonResult:
     """
-    Compare two query result sets using set semantics.
-    Returns missing rows, extra rows, and similarity metrics.
+    Compare two result sets under bag (multiset) semantics.
+
+    SQL is a bag language: a query returning a row twice has not returned the
+    same answer as one returning it once. Comparing sets discarded that
+    difference and with it every duplicate-producing error, most importantly a
+    row-multiplying extraneous join, which set comparison reported as
+    equivalent. Row multiplicity is therefore part of the comparison, and
+    column names are not (see _row_key).
     """
     if not base.success or not student.success:
         return ComparisonResult(are_equivalent=False)
 
-    base_keys   = {_row_key(r): r for r in base.rows}
-    student_keys = {_row_key(r): r for r in student.rows}
+    base_bag    = Counter(_row_key(r) for r in base.rows)
+    student_bag = Counter(_row_key(r) for r in student.rows)
 
-    base_set    = set(base_keys.keys())
-    student_set = set(student_keys.keys())
+    # One representative row per distinct key, so the residual can be reported
+    # back to the student as rows rather than as opaque keys.
+    sample: Dict[Tuple, Dict] = {}
+    for r in base.rows:
+        sample.setdefault(_row_key(r), r)
+    for r in student.rows:
+        sample.setdefault(_row_key(r), r)
 
-    missing  = [base_keys[k]    for k in base_set - student_set]
-    extra    = [student_keys[k] for k in student_set - base_set]
-    matching = [base_keys[k]    for k in base_set & student_set]
+    missing_bag = base_bag - student_bag      # in base, not covered by student
+    extra_bag   = student_bag - base_bag      # in student, beyond base
+    shared      = base_bag & student_bag
 
-    union = base_set | student_set
-    jaccard = len(base_set & student_set) / len(union) if union else 1.0
+    def _expand(bag: Counter) -> List[Dict]:
+        """Multiset difference back to rows, repeating a row once per surplus."""
+        return [sample[k] for k, n in bag.items() for _ in range(n)]
+
+    missing  = _expand(missing_bag)
+    extra    = _expand(extra_bag)
+    matching = _expand(shared)
+
+    union_size = sum((base_bag | student_bag).values())
+    jaccard = sum(shared.values()) / union_size if union_size else 1.0
 
     return ComparisonResult(
-        are_equivalent=(base_set == student_set),
+        are_equivalent=(base_bag == student_bag),
         missing_rows=missing,
         extra_rows=extra,
         matching_rows=matching,
         base_count=len(base.rows),
         student_count=len(student.rows),
         jaccard_similarity=jaccard,
-        is_subset=(student_set <= base_set),
-        is_superset=(student_set >= base_set),
+        is_subset=(not extra_bag),      # student contains nothing base lacks
+        is_superset=(not missing_bag),  # student covers everything base has
     )
 
 

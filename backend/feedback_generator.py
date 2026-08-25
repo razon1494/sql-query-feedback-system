@@ -89,6 +89,10 @@ class FeedbackReport:
     items: List[FeedbackItem] = field(default_factory=list)
     misconceptions: List[Dict] = field(default_factory=list)
     raw_misconceptions: List[Dict] = field(default_factory=list)  # pre-filter, for research eval
+    # Proposals that survived the global filter but whose own predicted effect
+    # was absent from the evidence. Retained instructor-side, and the quantity
+    # the diagnosis-specific gate exists to measure.
+    unsupported_misconceptions: List[Dict] = field(default_factory=list)
     summary: str = ""
 
     def to_dict(self):
@@ -101,6 +105,7 @@ class FeedbackReport:
             "items": [i.to_dict() for i in self.items],
             "misconceptions": self.misconceptions,
             "raw_misconceptions": self.raw_misconceptions,
+            "unsupported_misconceptions": self.unsupported_misconceptions,
             "summary": self.summary,
         }
 
@@ -774,6 +779,233 @@ def _detect_misconceptions(base: ParsedQuery, student: ParsedQuery,
 
 
 # ══════════════════════════════════════════════════════════════════════
+#  DIAGNOSIS-SPECIFIC EVIDENCE GATING
+# ══════════════════════════════════════════════════════════════════════
+#
+# A single global test — "the student's output differs from the reference"
+# — establishes that the submission is wrong. It does not establish that any
+# *particular* structural proposal caused the wrongness. A submission with two
+# structural deviations, one a legitimate alternative formulation and one a
+# genuine error, diverges on output; a global gate releases both proposals, so
+# execution corroborates the incorrectness of the query but not the diagnosis.
+#
+#     Release(m)  <=>  structural_trigger(m)  AND  evidence_supports(m)
+#
+# where evidence_supports(m) is the predicted *observable effect of m*, not
+# merely Q_s(D) != Q_r(D). Each detector declares the residual signature its
+# misconception implies; a proposal whose predicted effect is absent from the
+# observed evidence is withheld.
+#
+# Two invariants hold by construction:
+#
+#   1. This gate is AND-ed with the pre-existing global filter, so it can only
+#      withhold a proposal that filter would have released, never release one
+#      it suppressed. Measured false-positive rates on alternate-correct
+#      submissions therefore cannot rise.
+#   2. Where a discriminating signal is unavailable — no provenance trace was
+#      computed, no edge instances exist — the predicate falls back to a
+#      weaker but still diagnosis-specific test rather than withholding.
+#      Absence of a signal is not evidence against a diagnosis.
+
+
+class _Evidence:
+    """Normalised view of the execution evidence available for one submission."""
+
+    __slots__ = ("extra", "missing", "base_count", "student_count",
+                 "exec_error", "edges", "provenance", "aggregates")
+
+    def __init__(self, comparison, edge_results, provenance_trace, execution_error,
+                 base=None, student=None):
+        comparison = comparison or {}
+        self.extra         = len(comparison.get("extra_rows") or [])
+        self.missing       = len(comparison.get("missing_rows") or [])
+        self.base_count    = comparison.get("base_count")
+        self.student_count = comparison.get("student_count")
+        self.exec_error    = execution_error
+        self.edges         = edge_results or []
+        self.provenance    = provenance_trace
+        # Whether either query aggregates. This decides whether the *direction*
+        # of a residual is predictable at all: see _ev_less_restrictive.
+        self.aggregates = bool(
+            (base is not None and (base.group_by or base.having))
+            or (student is not None and (student.group_by or student.having))
+            or (base is not None and _has_aggregate(base.raw or ""))
+            or (student is not None and _has_aggregate(student.raw or ""))
+        )
+
+    @property
+    def failed_edges(self):
+        return [e for e in self.edges if not e.get("passed")]
+
+    @property
+    def over_returns(self):
+        """Student returned at least one row the reference does not.
+
+        An aggregate evaluated over a wider input shows up here too: the
+        changed value is a row the reference never returned.
+        """
+        return self.extra > 0
+
+    @property
+    def under_returns(self):
+        """Student omitted at least one row the reference returns."""
+        return self.missing > 0
+
+    @property
+    def collapsed(self):
+        """Student produced at most one group where the reference produced many.
+
+        Zero counts as collapsed: a single aggregate row that a HAVING clause
+        then rejects leaves no output at all, which is the same event observed
+        one step later.
+        """
+        return (self.student_count is not None
+                and self.student_count <= 1
+                and (self.base_count or 0) > 1)
+
+    @property
+    def returned_nothing(self):
+        return self.student_count == 0 and (self.base_count or 0) > 0
+
+    @property
+    def diverges(self):
+        return bool(self.extra or self.missing or self.exec_error
+                    or self.failed_edges)
+
+
+def _ev_rejected_by_engine(ev):
+    """The engine refuses to run the query at all."""
+    return ev.exec_error is not None
+
+
+def _ev_less_restrictive(ev):
+    """A constraint the reference applies is absent, so the input relation grows.
+
+    Withheld when the query never executed: a query the engine rejected
+    produced no rows and so offers no evidence that it was under-restrictive.
+
+    The *direction* of the residual is only predictable when the query does not
+    aggregate. Under aggregation a wider input does not add output rows; it
+    changes aggregate values, and an aggregate filter can then reject groups
+    that previously passed, so the student returns fewer rows rather than more.
+    A cartesian product under `HAVING count(*) < k` is the standard case. Where
+    the query aggregates, divergence is therefore the strongest
+    direction-independent evidence the diagnosis predicts.
+    """
+    if ev.exec_error is not None:
+        return False
+    if ev.over_returns:
+        return True
+    return ev.aggregates and ev.diverges
+
+
+def _ev_having_vs_where(ev):
+    """An aggregate moved into WHERE is rejected outright by standard engines.
+
+    Where an engine tolerates it, the predicate filters rows instead of groups
+    and the result over-returns.
+    """
+    return _ev_rejected_by_engine(ev) or ev.over_returns
+
+
+def _ev_missing_group_by(ev):
+    """Dropping GROUP BY collapses the result to a single aggregate row.
+
+    Engines that reject a mixed SELECT list refuse the query instead.
+    """
+    return _ev_rejected_by_engine(ev) or ev.collapsed or ev.over_returns
+
+
+def _ev_all_or_nothing(ev):
+    """An uncorrelated subquery is evaluated once, as a constant.
+
+    The outer predicate is then invariant across rows, so either every
+    candidate row qualifies or none does.
+    """
+    return (ev.returned_nothing or ev.over_returns
+            or _ev_rejected_by_engine(ev))
+
+
+def _ev_null_trap(ev):
+    """NOT IN over a NULL-bearing subquery is UNKNOWN for every row.
+
+    The NULL-injected edge instance is the discriminating evidence, and where
+    one was constructed its failure settles the diagnosis. On data holding no
+    NULLs the trap is dormant, and what remains observable is that substituting
+    NOT IN for a correlated negation changed the result at all; the direction
+    of that change follows from the divisor contents, not from the diagnosis.
+    Where no NULL-bearing instance could be built at all — the link table is
+    declared NOT NULL — absence of the discriminating signal is not evidence
+    against the diagnosis, so the gate falls back to divergence.
+    """
+    if ev.failed_edges:
+        return True
+    if ev.under_returns or ev.returned_nothing:
+        return True
+    if not ev.edges:
+        return ev.diverges
+    return False
+
+
+def _ev_null_equality(ev):
+    """`= NULL` is never true, so the predicate eliminates every row."""
+    return ev.returned_nothing or ev.under_returns
+
+
+def _ev_in_for_division(ev):
+    """IN tests existential membership, so partial matchers are admitted.
+
+    Where a provenance trace exists it discriminates directly, naming the
+    divisor elements a returned row is missing; otherwise the observable
+    consequence is that the student returns rows the reference excludes.
+    """
+    if ev.provenance:
+        if ev.provenance.get("incomplete_rows") or ev.provenance.get("violations"):
+            return True
+    return ev.over_returns or bool(ev.failed_edges)
+
+
+def _ev_any_divergence(ev):
+    """Bidirectional diagnoses, whose residual direction is not predicted.
+
+    Swapping one set operator for another can add or remove rows depending on
+    the operands, so divergence is the strongest diagnosis-consistent evidence
+    available. Recorded explicitly so the weaker gate is visible, not implied.
+    """
+    return ev.diverges
+
+
+MISCONCEPTION_EVIDENCE = {
+    "MISSING_WHERE":          _ev_less_restrictive,
+    "MISSING_HAVING":         _ev_less_restrictive,
+    "WRONG_JOIN_TYPE":        _ev_less_restrictive,
+    "MISSING_JOIN":           _ev_less_restrictive,
+    "CARTESIAN_PRODUCT":      _ev_less_restrictive,
+    "IN_vs_EXISTS":           _ev_less_restrictive,
+    "HAVING_vs_WHERE":        _ev_having_vs_where,
+    "MISSING_GROUP_BY":       _ev_missing_group_by,
+    "MISSING_NOT_EXISTS":     _ev_all_or_nothing,
+    "MISSING_CORRELATED_REF": _ev_all_or_nothing,
+    "NOT_IN_vs_NOT_EXISTS":   _ev_null_trap,
+    "NULL_EQUALITY":          _ev_null_equality,
+    "IN_FOR_DIVISION":        _ev_in_for_division,
+    "MISSING_SET_OP":         _ev_any_divergence,
+    "WRONG_SET_OP":           _ev_any_divergence,
+    "HARDCODED_THRESHOLD":    _ev_any_divergence,
+}
+
+
+def evidence_supports(key: str, ev: "_Evidence") -> bool:
+    """Does the observed evidence exhibit the effect this diagnosis predicts?"""
+    predicate = MISCONCEPTION_EVIDENCE.get(key)
+    if predicate is None:
+        # Uncharacterised detector: fall back to the global divergence test
+        # rather than withholding on a signature that was never written.
+        return ev.diverges
+    return predicate(ev)
+
+
+# ══════════════════════════════════════════════════════════════════════
 #  GRADING
 # ══════════════════════════════════════════════════════════════════════
 
@@ -1090,7 +1322,21 @@ def generate_feedback(
     results_ok = bool(comparison.get("are_equivalent"))
     edges_ok   = not edge_results or all(e.get("passed") for e in edge_results)
     suppressed = results_ok and edges_ok
-    misconceptions = [] if suppressed else raw_misconceptions
+
+    # Release(m) <=> structural_trigger(m) AND evidence_supports(m). The global
+    # filter above establishes that *something* is wrong; the per-proposal gate
+    # below establishes that this particular diagnosis is what the evidence
+    # shows. A proposal whose predicted effect is absent is withheld from the
+    # student and retained instructor-side.
+    evidence = _Evidence(comparison, edge_results, provenance_trace, execution_error,
+                         base=base_parse, student=student_parse)
+    if suppressed:
+        misconceptions, unsupported = [], []
+    else:
+        misconceptions = [m for m in raw_misconceptions
+                          if evidence_supports(m["key"], evidence)]
+        unsupported    = [m for m in raw_misconceptions
+                          if not evidence_supports(m["key"], evidence)]
 
     syntax_grade  = _grade_syntax(student_parse, execution_error)
     logic_grade   = _grade_logic(base_parse, student_parse, diffs, problem_type, misconceptions)
@@ -1143,5 +1389,6 @@ def generate_feedback(
         items=items,
         misconceptions=misconceptions,
         raw_misconceptions=raw_misconceptions,
+        unsupported_misconceptions=unsupported,
         summary=summary,
     )

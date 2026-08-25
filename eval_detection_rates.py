@@ -1,8 +1,8 @@
 """
 Detection-rate evaluation harness for the SQL feedback generator.
 
-For each of the 25 problems, generates a set of mutated wrong queries —
-one per applicable misconception (M1-M10 + NULL_EQUALITY) — then runs
+For each problem in the catalogue, generates a set of mutated wrong queries --
+one per applicable misconception (M1-M10 + NULL_EQUALITY) -- then runs
 them through _detect_misconceptions() and reports the per-misconception
 detection rate.
 
@@ -22,15 +22,15 @@ from backend.feedback_generator import _detect_misconceptions
 from backend.problems import PROBLEMS
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  MUTATORS — transform a correct base query into a wrong one
+# ======================================================================
+#  MUTATORS -- transform a correct base query into a wrong one
 #             exhibiting a specific misconception.
 #  Each returns a mutated SQL string, or None if the mutation does not
 #  apply to the given base query.
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def mut_drop_where(sql):
-    """M1 MISSING_WHERE — drop the WHERE clause."""
+    """M1 MISSING_WHERE -- drop the WHERE clause."""
     m = re.search(r'\bWHERE\b', sql, re.IGNORECASE)
     if not m:
         return None
@@ -44,7 +44,7 @@ def mut_drop_where(sql):
 
 
 def mut_exists_to_in(sql):
-    """M2 IN_vs_EXISTS — replace EXISTS with IN."""
+    """M2 IN_vs_EXISTS -- replace EXISTS with IN."""
     # Match `EXISTS (SELECT ...)` not preceded by NOT
     if re.search(r'\bNOT\s+EXISTS\b', sql, re.IGNORECASE):
         return None  # keep M3 separate
@@ -82,7 +82,7 @@ def _find_outermost_not_exists(sql):
 
 
 def mut_notexists_to_notin(sql):
-    """M3 NOT_IN_vs_NOT_EXISTS — replace the *outermost* NOT EXISTS with NOT IN.
+    """M3 NOT_IN_vs_NOT_EXISTS -- replace the *outermost* NOT EXISTS with NOT IN.
 
     Only applies when the base query has a genuine depth-0 NOT EXISTS
     predicate. Problems whose outermost predicate is something else
@@ -102,12 +102,12 @@ def mut_notexists_to_notin(sql):
 
 
 def mut_inner_to_left(sql):
-    """M4 WRONG_JOIN_TYPE — replace INNER JOIN (or plain JOIN) with LEFT JOIN."""
+    """M4 WRONG_JOIN_TYPE -- replace INNER JOIN (or plain JOIN) with LEFT JOIN."""
     if not re.search(r'\bJOIN\b', sql, re.IGNORECASE):
         return None
     out = re.sub(r'\bINNER\s+JOIN\b', 'LEFT JOIN', sql, flags=re.IGNORECASE)
     if out == sql:
-        # plain "JOIN" — add LEFT qualifier (but not to LEFT/RIGHT/FULL/CROSS already)
+        # plain "JOIN" -- add LEFT qualifier (but not to LEFT/RIGHT/FULL/CROSS already)
         out = re.sub(r'(?<!LEFT\s)(?<!RIGHT\s)(?<!FULL\s)(?<!CROSS\s)(?<!NATURAL\s)\bJOIN\b',
                      'LEFT JOIN', sql, count=1, flags=re.IGNORECASE)
     return out if out != sql else None
@@ -115,7 +115,7 @@ def mut_inner_to_left(sql):
 
 def mut_make_cartesian(sql):
     """
-    M5 CARTESIAN_PRODUCT — turn the first `JOIN ... ON ...` into a comma-join
+    M5 CARTESIAN_PRODUCT -- turn the first `JOIN ... ON ...` into a comma-join
     and remove its ON predicate. Requires a single-table base with at least
     one explicit JOIN.
     """
@@ -138,7 +138,7 @@ def mut_make_cartesian(sql):
 
 def mut_drop_group_by(sql):
     """
-    M6 MISSING_GROUP_BY — drop GROUP BY when the SELECT contains
+    M6 MISSING_GROUP_BY -- drop GROUP BY when the SELECT contains
     both an aggregate and a non-aggregate column.
     """
     if not re.search(r'\bGROUP\s+BY\b', sql, re.IGNORECASE):
@@ -165,7 +165,7 @@ def mut_drop_group_by(sql):
 
 def mut_having_to_where(sql):
     """
-    M7 HAVING_vs_WHERE — move the HAVING predicate into WHERE. The base
+    M7 HAVING_vs_WHERE -- move the HAVING predicate into WHERE. The base
     query must have a HAVING clause.
     """
     m = re.search(r'\bHAVING\b(.+?)(\bORDER\s+BY\b|;|$)', sql, re.IGNORECASE | re.DOTALL)
@@ -178,7 +178,7 @@ def mut_having_to_where(sql):
     w = re.search(r'\bWHERE\b', sql_no_having, re.IGNORECASE)
     if w:
         return sql_no_having[:w.end()] + f" {having_content} AND" + sql_no_having[w.end():]
-    # No WHERE — inject one before GROUP BY
+    # No WHERE -- inject one before GROUP BY
     gb = re.search(r'\bGROUP\s+BY\b', sql_no_having, re.IGNORECASE)
     if gb:
         return sql_no_having[:gb.start()] + f"WHERE {having_content} " + sql_no_having[gb.start():]
@@ -187,7 +187,7 @@ def mut_having_to_where(sql):
 
 def mut_division_to_in(sql):
     """
-    M8 IN_FOR_DIVISION — rewrite the division `NOT EXISTS (… NOT IN …)`
+    M8 IN_FOR_DIVISION -- rewrite the division `NOT EXISTS (... NOT IN ...)`
     into the classic IN-shape partial-match mistake:
 
         WHERE <outer_alias>.<outer_key> IN (
@@ -217,7 +217,7 @@ def mut_division_to_in(sql):
     group_val     = m.group(1)
     link_alias    = m.group(2)
     link_table    = m.group(3)
-    # m.group(4) is the link FK column (unused — we reference outer_key below).
+    # m.group(4) is the link FK column (unused -- we reference outer_key below).
     outer_alias   = m.group(5)
     outer_key     = m.group(6)
 
@@ -234,11 +234,11 @@ def mut_division_to_in(sql):
 
 def mut_remove_correlation(sql):
     """
-    M9 CORRELATED_SCOPE — break the inner subquery's correlation to the outer
+    M9 CORRELATED_SCOPE -- break the inner subquery's correlation to the outer
     by scrambling its correlated equality. Matches three shapes:
       WHERE a.c = b.c          (first predicate in subquery WHERE)
       AND   a.c = b.c          (later predicate)
-            a.c = b.c AND …    (first predicate followed by AND)
+            a.c = b.c AND ...    (first predicate followed by AND)
     Replaces the RHS alias-qualified column with a literal so the predicate
     no longer references the outer query.
     """
@@ -269,7 +269,7 @@ def mut_remove_correlation(sql):
 
 
 def mut_union_to_intersect(sql):
-    """M10 WRONG_SET_OP — flip UNION ↔ INTERSECT, or UNION → EXCEPT."""
+    """M10 WRONG_SET_OP -- flip UNION <-> INTERSECT, or UNION -> EXCEPT."""
     if re.search(r'\bUNION\s+ALL\b', sql, re.IGNORECASE):
         out = re.sub(r'\bUNION\s+ALL\b', 'INTERSECT', sql, flags=re.IGNORECASE)
     elif re.search(r'\bUNION\b', sql, re.IGNORECASE):
@@ -284,18 +284,18 @@ def mut_union_to_intersect(sql):
 
 
 def mut_null_equality(sql):
-    """NULL_EQUALITY — replace IS NULL with = NULL."""
+    """NULL_EQUALITY -- replace IS NULL with = NULL."""
     if not re.search(r'\bIS\s+NULL\b', sql, re.IGNORECASE):
         return None
     out = re.sub(r'\bIS\s+NULL\b', '= NULL', sql, flags=re.IGNORECASE)
     return out if out != sql else None
 
 
-# ══════════════════════════════════════════════════════════════════════
-#  MUTATION → MISCONCEPTION MAP
+# ======================================================================
+#  MUTATION -> MISCONCEPTION MAP
 #  Maps the applied mutation to the misconception key(s) we expect
 #  _detect_misconceptions() to return.
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 MUTATIONS = [
     # (mutation_name, applicable_problem_types, mutator_fn, expected_key(s))
@@ -313,9 +313,9 @@ MUTATIONS = [
 ]
 
 
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 #  EVAL LOOP
-# ══════════════════════════════════════════════════════════════════════
+# ======================================================================
 
 def evaluate():
     results = []  # list of dicts per attempted case
@@ -362,11 +362,11 @@ def evaluate():
                 "hit": detected,
             })
 
-    # ── report ───────────────────────────────────────────────────
+    # -- report ---------------------------------------------------
     print()
-    print("═══════════════════════════════════════════════════════════════════")
+    print("===================================================================")
     print(" PER-MISCONCEPTION DETECTION RATE")
-    print("═══════════════════════════════════════════════════════════════════")
+    print("===================================================================")
     print(f"{'Mutation':<25} {'Applied':>8} {'Detected':>10} {'Rate':>8}")
     print("-" * 67)
     total_applied = 0
@@ -390,19 +390,19 @@ def evaluate():
         misses = by_mut[mut_name]["misses"]
         if misses:
             if not any_miss:
-                print("═══════════════════════════════════════════════════════════════════")
+                print("===================================================================")
                 print(" MISSES (expected not found)")
-                print("═══════════════════════════════════════════════════════════════════")
+                print("===================================================================")
                 any_miss = True
-            print(f"\n• {mut_name} → missed on:")
+            print(f"\n* {mut_name} -> missed on:")
             for miss in misses:
                 print(f"    {miss['problem_id']}  detected={miss['detected_instead'] or 'NONE'}")
 
     # Report mutations that could not be applied (for transparency)
     print()
-    print("═══════════════════════════════════════════════════════════════════")
+    print("===================================================================")
     print(" MUTATION APPLICABILITY")
-    print("═══════════════════════════════════════════════════════════════════")
+    print("===================================================================")
     for mut_name, applicable_types, _, _ in MUTATIONS:
         stats = by_mut[mut_name]
         total_possible = stats["applied"] + stats["mutation_failed"]

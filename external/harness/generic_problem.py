@@ -83,6 +83,9 @@ class AnalysisResult:
     gold_exec_error: Optional[str]
     student_exec_error: Optional[str]
     edges_ok: bool = True            # all edge instances passed (or none ran)
+    # Proposals withheld because their own predicted effect was absent from the
+    # evidence, though the submission did diverge. Empty under a global filter.
+    unsupported: List[str] = field(default_factory=list)
     report: Any = None               # full FeedbackReport (for deep inspection)
 
     def has(self, key: str) -> bool:
@@ -174,6 +177,7 @@ def analyze(problem: GenericProblem, candidate_sql: str,
         db_id=problem.db_id,
         detected=[m["key"] for m in report.misconceptions],
         raw=[m["key"] for m in report.raw_misconceptions],
+        unsupported=[m["key"] for m in report.unsupported_misconceptions],
         are_equivalent=bool(comp.get("are_equivalent")),
         is_alternate_correct=report.is_alternate_correct,
         total_score=report.total_score,
