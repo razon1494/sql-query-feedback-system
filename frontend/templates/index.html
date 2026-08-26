@@ -372,6 +372,22 @@ tr.match td{background:#f0fdf4}
     body.figure-mode .withheld-label{font-size:16px}
     body.figure-mode .withheld-note{font-size:14.5px}
     body.figure-mode #withheld-btn{display:none}
+
+    /* The gate summary already reports "Released 0", so the green card is
+       restating it. Shrink it to one line and let the withheld panel — the
+       actual subject of the figure — carry the visual weight. */
+    body.figure-mode .misc-none{padding:.5rem .7rem}
+    body.figure-mode .misc-none .misc-desc{display:none}
+    body.figure-mode .misc-none .misc-title{font-size:.86rem;margin-bottom:0}
+    body.figure-mode .misc-none .misc-icon{font-size:.9rem}
+
+    /* Tighten the vertical run so the capture is landscape, not square. */
+    body.figure-mode .sec{margin-bottom:.5rem}
+    body.figure-mode .qctx{margin-bottom:.5rem}
+    body.figure-mode #misc-content{gap:.5rem}
+    body.figure-mode .withheld-block{margin-top:.7rem;padding:11px 13px}
+    body.figure-mode .withheld-note{margin-top:5px}
+    body.figure-mode .withheld-card{margin-top:7px}
 </style>
 </head>
 <body>
@@ -652,7 +668,7 @@ tr.match td{background:#f0fdf4}
 
     <!-- MISCONCEPTIONS -->
     <div class="panel" id="panel-misc">
-      <div class="sec">Detected Misconceptions</div>
+      <div class="sec">Misconception Analysis</div>
       <div id="misc-content" style="display:flex;flex-direction:column;gap:.7rem">
         <div class="empty"><div class="empty-icon">🧠</div><div class="empty-txt">Run analysis first.</div></div>
       </div>
@@ -1226,7 +1242,7 @@ function renderMisconceptions(misc, withheld) {
     </div>`;
 
   if (!rel.length) {
-    html += `<div class="misc-card"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
+    html += `<div class="misc-card misc-none"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
   } else {
     html += rel.map(m => `
     <div class="misc-card">
