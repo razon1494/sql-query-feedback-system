@@ -335,6 +335,19 @@ tr.match td{background:#f0fdf4}
     .gate-count{font-weight:600}
     .gate-count b{font-variant-numeric:tabular-nums}
     .gate-sep{color:#a5b4fc}
+
+    /* Query context: makes the tab self-contained, so a reader sees which
+       submission the verdict is about without switching to the Editor. */
+    .qctx{display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.7rem}
+    .qctx-col{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
+    .qctx-head{display:flex;align-items:center;gap:.4rem;padding:5px 10px;
+               background:var(--surface2);border-bottom:1px solid var(--border);
+               font-size:10.5px;font-weight:700;letter-spacing:.06em;
+               text-transform:uppercase;color:var(--text3)}
+    .qctx-dot{width:7px;height:7px;border-radius:50%}
+    .qctx-body{margin:0;padding:8px 10px;font-family:var(--mono);font-size:11px;
+               line-height:1.5;color:var(--text2);white-space:pre;overflow-x:auto}
+    @media(max-width:900px){.qctx{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -1154,6 +1167,23 @@ function renderMisconceptions(misc, withheld) {
   const rel = misc || [];
   const wh  = withheld || [];
   let html = '';
+
+  // Show the two queries the verdict is about, so the tab reads on its own.
+  const refQ = (document.getElementById('base-q')    || {}).value || '';
+  const subQ = (document.getElementById('student-q') || {}).value || '';
+  if (refQ && subQ) {
+    html += `
+    <div class="qctx">
+      <div class="qctx-col">
+        <div class="qctx-head"><span class="qctx-dot" style="background:var(--good)"></span>Reference query</div>
+        <pre class="qctx-body">${esc(refQ.trim())}</pre>
+      </div>
+      <div class="qctx-col">
+        <div class="qctx-head"><span class="qctx-dot" style="background:var(--accent2)"></span>Student submission</div>
+        <pre class="qctx-body">${esc(subQ.trim())}</pre>
+      </div>
+    </div>`;
+  }
 
   // Name the release rule up front, so the mechanism is legible even when
   // the gate had nothing to withhold on this submission.
