@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SQL Feedback System — Mohammad Arifur Rahman | Dr. Hasan Jamil, University of Idaho</title>
+<title>AuditQL — Evidence-Gated SQL Diagnosis</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=DM+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -325,15 +325,25 @@ tr.match td{background:#f0fdf4}
     .withheld-note{margin-top:8px;font-size:13px;line-height:1.55;color:#64748b}
     .withheld-card{margin-top:10px;background:#fff;opacity:.85}
     .withheld-card .misc-why{border-left-color:#94a3b8;background:#f1f5f9;color:#475569}
+
+    /* Gate summary: names the release rule even when nothing is withheld */
+    .gate-bar{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem .9rem;
+              padding:9px 12px;border:1px solid #c7d2fe;background:#eef2ff;
+              border-radius:8px;font-size:12.5px;color:#3730a3}
+    .gate-rule{font-family:var(--mono);font-size:11.5px;color:#4338ca;
+               background:#e0e7ff;border-radius:4px;padding:2px 7px}
+    .gate-count{font-weight:600}
+    .gate-count b{font-variant-numeric:tabular-nums}
+    .gate-sep{color:#a5b4fc}
 </style>
 </head>
 <body>
 
 <header>
   <div class="logo">
-    <div class="logo-icon">SQL</div>
-    SQL Feedback System
-    <span class="badge">Mohammad Arifur Rahman · Dr. Hasan Jamil, Univ. of Idaho</span>
+    <div class="logo-icon">AQL</div>
+    AuditQL
+    <span class="badge">Evidence-gated SQL diagnosis</span>
   </div>
   <nav>
     <button class="nav-btn active" onclick="switchView('main')">Feedback Engine</button>
@@ -431,6 +441,8 @@ tr.match td{background:#f0fdf4}
         <button class="btn btn-secondary btn-sm" onclick="loadSample('wrong')">Load Wrong Answer</button>
         <button class="btn btn-secondary btn-sm" onclick="loadSample('correct')">Load Correct Answer</button>
         <button class="btn btn-secondary btn-sm" onclick="loadSample('partial')">Load Partial Answer</button>
+        <button class="btn btn-secondary btn-sm" id="btn-alternate" style="display:none"
+                onclick="loadSample('alternate')">Load Alternate-Correct</button>
         <div id="attempt-badge" style="display:none;font-size:.7rem;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-family:var(--mono)">Attempt <span id="attempt-num">1</span></div>
         <div class="score-wrap" id="score-wrap" style="display:none">
           <div>
@@ -615,12 +627,12 @@ tr.match td{background:#f0fdf4}
 <div class="app" id="about-view" style="overflow-y:auto">
   <div class="about-inner">
     <div style="font-family:var(--display);font-size:1.9rem;font-weight:800;margin-bottom:.4rem;color:var(--text)">
-      SQL Query Feedback System
+      AuditQL
     </div>
     <div style="color:var(--text2);font-size:.86rem;margin-bottom:1.5rem;line-height:1.7">
-      A PhD-level research prototype for automated SQL query evaluation &amp; feedback generation.<br>
-      Developed by <span style="color:var(--accent);font-weight:700">Mohammad Arifur Rahman</span><br>
-      Submitted to <span style="color:var(--accent2);font-weight:700">Dr. Hasan Jamil</span>, Department of Computer Science, University of Idaho
+      A research prototype for automated SQL query evaluation &amp; feedback generation.<br>
+      A structural detector <em>proposes</em> a diagnosis; an evidence gate <em>releases</em> it
+      only when execution shows the effect that diagnosis itself predicts.
     </div>
     <div class="info-box" style="padding:1.05rem;font-size:.8rem;line-height:1.8;margin-bottom:1.25rem;background:#eff4ff;border-color:#bfdbfe">
       <strong style="font-size:.88rem;display:block;margin-bottom:.4rem">System Overview</strong>
@@ -675,6 +687,10 @@ let sampleAnswers = {
     wrong:   `SELECT s.StuID, s.Name\nFROM Students s\nWHERE s.StuID IN (\n    SELECT t.StuID FROM Takes t\n    WHERE t.CourseID IN (\n        SELECT c.CourseID FROM Courses c WHERE c."Group" = 'DB'\n    )\n);`,
     correct: `SELECT s.StuID, s.Name\nFROM Students s\nWHERE NOT EXISTS (\n    SELECT c.CourseID FROM Courses c\n    WHERE c."Group" = 'DB'\n    AND c.CourseID NOT IN (\n        SELECT t.CourseID FROM Takes t WHERE t.StuID = s.StuID\n    )\n);`,
     partial: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB'\nGROUP BY s.StuID, s.Name\nHAVING COUNT(DISTINCT t.CourseID) >= 2;`,
+    // Correct by counting rather than negating: output-equivalent to the
+    // reference, but sharing almost none of its shape. A shape-only tier
+    // flags it; the evidence gate withholds that proposal.
+    alternate: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB'\nGROUP BY s.StuID, s.Name\nHAVING COUNT(DISTINCT c.CourseID) = (\n    SELECT COUNT(*) FROM Courses WHERE "Group" = 'DB'\n);`,
   },
   div_all_cs_courses: {
     wrong:   `SELECT s.StuID, s.Name FROM Students s\nWHERE s.Major = 'CS'\nAND s.StuID IN (\n    SELECT t.StuID FROM Takes t\n    JOIN Courses c ON t.CourseID = c.CourseID\n    WHERE c."Group" = 'CS'\n);`,
@@ -793,6 +809,11 @@ async function selectProblem(id) {
      ${p.hint ? `<br><span style="color:var(--accent2);font-size:.7rem">💡 Hint: ${p.hint}</span>` : ''}`;
   document.getElementById('base-q').value = p.base_query;
   document.getElementById('student-q').value = '';
+  const altBtn = document.getElementById('btn-alternate');
+  if (altBtn) {
+    const s = sampleAnswers[id];
+    altBtn.style.display = (s && s.alternate) ? '' : 'none';
+  }
   document.getElementById('score-wrap').style.display = 'none';
   document.getElementById('quick-results').style.display = 'none';
   document.getElementById('feedback-pulse').style.display = 'none';
@@ -1134,6 +1155,18 @@ function renderMisconceptions(misc, withheld) {
   const wh  = withheld || [];
   let html = '';
 
+  // Name the release rule up front, so the mechanism is legible even when
+  // the gate had nothing to withhold on this submission.
+  html += `
+    <div class="gate-bar">
+      <span class="gate-rule">release(m) = proposed(m) AND evidence supports(m)</span>
+      <span class="gate-count">Proposed <b>${rel.length + wh.length}</b></span>
+      <span class="gate-sep">·</span>
+      <span class="gate-count">Released <b>${rel.length}</b></span>
+      <span class="gate-sep">·</span>
+      <span class="gate-count">Withheld <b>${wh.length}</b></span>
+    </div>`;
+
   if (!rel.length) {
     html += `<div class="misc-card"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
   } else {
@@ -1164,14 +1197,14 @@ function renderMisconceptions(misc, withheld) {
     <div class="withheld-block">
       <div class="withheld-head">
         <span class="withheld-label">🔒 Withheld by the evidence gate (${wh.length})</span>
-        <button class="btn btn-secondary btn-sm" id="withheld-btn" onclick="toggleWithheld()">Show</button>
+        <button class="btn btn-secondary btn-sm" id="withheld-btn" onclick="toggleWithheld()">Hide</button>
       </div>
       <div class="withheld-note">
         The structural analyser proposed ${one?'this':'these'}, but the gate did not release
         ${one?'it':'them'} to the student: the execution evidence did not show the effect
         ${one?'it predicts':'they predict'}. Shown here for the instructor only.
       </div>
-      <div id="withheld-body" style="display:none">
+      <div id="withheld-body" style="display:block">
         ${wh.map(m => `
         <div class="misc-card withheld-card">
           <div class="misc-icon">🔒</div>
@@ -1412,8 +1445,8 @@ function esc(s) {
 <div style="position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);
   padding:5px 1.5rem;display:flex;justify-content:space-between;align-items:center;z-index:200;
   font-size:.65rem;color:var(--text3)">
-  <span>📘 <strong style="color:var(--text2)">SQL Query Feedback System</strong> — PhD Research Prototype</span>
-  <span>Developed by <strong style="color:var(--accent)">Mohammad Arifur Rahman</strong> &nbsp;|&nbsp; Submitted to <strong style="color:var(--accent2)">Dr. Hasan Jamil</strong>, University of Idaho</span>
+  <span>📘 <strong style="color:var(--text2)">AuditQL</strong> — research prototype</span>
+  <span>Structural detector proposes &nbsp;→&nbsp; evidence gate releases only what execution supports</span>
 </div>
 
 </body>

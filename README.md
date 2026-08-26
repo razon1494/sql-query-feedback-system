@@ -1,6 +1,9 @@
-# SQL Query Feedback System
+# AuditQL
 
 > **A Research Prototype for Automated SQL Query Evaluation and Feedback Generation**
+>
+> A structural detector *proposes* a diagnosis; an evidence gate *releases* it only
+> when execution shows the effect that diagnosis itself predicts.
 
 **Developed by:** Mohammad Arifur Rahman  
 **Submitted to:** Dr. Hasan Jamil, Department of Computer Science, University of Idaho
