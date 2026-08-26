@@ -348,6 +348,30 @@ tr.match td{background:#f0fdf4}
     .qctx-body{margin:0;padding:8px 10px;font-family:var(--mono);font-size:11px;
                line-height:1.5;color:var(--text2);white-space:pre;overflow-x:auto}
     @media(max-width:900px){.qctx{grid-template-columns:1fr}}
+
+    /* Figure mode (?figure=1): strip navigation chrome and enlarge type, so a
+       screenshot stays legible after being scaled down into a paper column.
+       Affects presentation only — no verdict, count or wording changes. */
+    body.figure-mode .sidebar,
+    body.figure-mode nav,
+    body.figure-mode .tab-hint{display:none}
+    /* the footer carries an inline display:flex, so it needs the override */
+    body.figure-mode #page-footer{display:none !important}
+    /* cap the width: SQL lines are short, and a full-bleed column would put
+       half the figure's area into empty space */
+    body.figure-mode .panel{padding-bottom:1rem;max-width:1180px}
+    body.figure-mode .sec{font-size:.95rem}
+    body.figure-mode .qctx-head{font-size:12.5px}
+    body.figure-mode .qctx-body{font-size:13.5px;line-height:1.6;padding:11px 13px}
+    body.figure-mode .gate-bar{font-size:15px;padding:12px 15px;gap:.6rem 1.1rem}
+    body.figure-mode .gate-rule{font-size:14px;padding:3px 9px}
+    body.figure-mode .misc-title{font-size:1rem}
+    body.figure-mode .misc-desc{font-size:.9rem}
+    body.figure-mode .misc-why{font-size:15px;padding:10px 13px}
+    body.figure-mode .misc-fix{font-size:.86rem}
+    body.figure-mode .withheld-label{font-size:16px}
+    body.figure-mode .withheld-note{font-size:14.5px}
+    body.figure-mode #withheld-btn{display:none}
 </style>
 </head>
 <body>
@@ -757,6 +781,10 @@ let sampleAnswers = {
 
 // ═══ INIT ═══
 window.onload = async () => {
+  // ?figure=1 renders the page for capture into a paper figure.
+  if (new URLSearchParams(location.search).has('figure')) {
+    document.body.classList.add('figure-mode');
+  }
   await loadProblems();
   await loadSchema();
 };
@@ -1472,7 +1500,7 @@ function esc(s) {
 }
 </script>
 
-<div style="position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);
+<div id="page-footer" style="position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);
   padding:5px 1.5rem;display:flex;justify-content:space-between;align-items:center;z-index:200;
   font-size:.65rem;color:var(--text3)">
   <span>📘 <strong style="color:var(--text2)">AuditQL</strong> — research prototype</span>
