@@ -1,4 +1,4 @@
-# AuditQL
+# EviSQL
 
 > **A Research Prototype for Automated SQL Query Evaluation and Feedback Generation**
 >

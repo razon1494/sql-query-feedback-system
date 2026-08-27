@@ -276,7 +276,7 @@ def health():
 
 if __name__ == "__main__":
     print("\n" + "="*55)
-    print("  SQL Feedback System — Research Prototype v1.0")
+    print("  EviSQL — Research Prototype v1.0")
     print("  Author: Mohammad Arifur Rahman")
     print("  Advisor: Dr. Hasan Jamil, University of Idaho")
     print("="*55)
