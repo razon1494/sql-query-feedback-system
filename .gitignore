@@ -47,5 +47,12 @@ external/data/derived/*
 !external/data/derived/perf_bench.json
 !external/data/derived/spider_alternates_dev_summary.json
 !external/data/derived/spider_wrong_dev_summary.json
+!external/data/derived/residual_summary_dev.json
+# The residual corpus and its adjudication packet stay out on purpose. The
+# corpus and sample are bulky and regenerate from a fixed seed. The packet is
+# different: sheet_rater*.csv and answer_key.csv are the blind sheets and the
+# sealed key, and this repository is public. A rater who found the key here
+# would stop being an independent rater, and the agreement figure would be
+# measuring the repository rather than their judgement.
 # Generated test fixtures
 external/fixtures/mini_spider/
