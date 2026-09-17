@@ -93,6 +93,9 @@ class FeedbackReport:
     # was absent from the evidence. Retained instructor-side, and the quantity
     # the diagnosis-specific gate exists to measure.
     unsupported_misconceptions: List[Dict] = field(default_factory=list)
+    # The query did not parse, or did not execute. Recorded because it changes
+    # what any downstream consumer is entitled to conclude from the evidence.
+    query_failed: bool = False
     summary: str = ""
 
     def to_dict(self):
@@ -106,6 +109,7 @@ class FeedbackReport:
             "misconceptions": self.misconceptions,
             "raw_misconceptions": self.raw_misconceptions,
             "unsupported_misconceptions": self.unsupported_misconceptions,
+            "query_failed": self.query_failed,
             "summary": self.summary,
         }
 
@@ -836,7 +840,23 @@ class _Evidence:
         )
 
     @property
+    def ran(self):
+        """The engine returned a result set.
+
+        Every row-derived property below is an observation *about that result
+        set*. When the engine refused the query there is no result set, and a
+        zero row count is an artefact of the failure rather than a measurement.
+        Left ungated, a syntax error looks identical to an over-restrictive
+        predicate: both "return nothing" and both "disagree on every instance".
+        A diagnosis that predicts an engine rejection should say so directly,
+        via `_ev_rejected_by_engine`.
+        """
+        return self.exec_error is None
+
+    @property
     def failed_edges(self):
+        if not self.ran:
+            return []
         return [e for e in self.edges if not e.get("passed")]
 
     @property
@@ -846,12 +866,12 @@ class _Evidence:
         An aggregate evaluated over a wider input shows up here too: the
         changed value is a row the reference never returned.
         """
-        return self.extra > 0
+        return self.ran and self.extra > 0
 
     @property
     def under_returns(self):
         """Student omitted at least one row the reference returns."""
-        return self.missing > 0
+        return self.ran and self.missing > 0
 
     @property
     def collapsed(self):
@@ -861,18 +881,22 @@ class _Evidence:
         then rejects leaves no output at all, which is the same event observed
         one step later.
         """
-        return (self.student_count is not None
+        return (self.ran
+                and self.student_count is not None
                 and self.student_count <= 1
                 and (self.base_count or 0) > 1)
 
     @property
     def returned_nothing(self):
-        return self.student_count == 0 and (self.base_count or 0) > 0
+        return self.ran and self.student_count == 0 and (self.base_count or 0) > 0
 
     @property
     def diverges(self):
-        return bool(self.extra or self.missing or self.exec_error
-                    or self.failed_edges)
+        """Observed disagreement. An engine rejection is not disagreement --
+        it is the absence of anything to compare."""
+        if not self.ran:
+            return False
+        return bool(self.extra or self.missing or self.failed_edges)
 
 
 def _ev_rejected_by_engine(ev):
@@ -923,9 +947,11 @@ def _ev_all_or_nothing(ev):
 
     The outer predicate is then invariant across rows, so either every
     candidate row qualifies or none does.
+
+    This is a claim about a result set, so an engine rejection does not support
+    it: a query that failed returned nothing for reasons of its own.
     """
-    return (ev.returned_nothing or ev.over_returns
-            or _ev_rejected_by_engine(ev))
+    return ev.returned_nothing or ev.over_returns
 
 
 def _ev_null_trap(ev):
@@ -1348,6 +1374,8 @@ def generate_feedback(
     edges_ok   = not edge_results or all(e.get("passed") for e in edge_results)
     suppressed = results_ok and edges_ok
 
+    query_failed = bool(student_parse.error or execution_error)
+
     # Release(m) <=> structural_trigger(m) AND evidence_supports(m). The global
     # filter above establishes that *something* is wrong; the per-proposal gate
     # below establishes that this particular diagnosis is what the evidence
@@ -1382,8 +1410,9 @@ def generate_feedback(
         execution_error=execution_error,
     )
 
-    if student_parse.error:
-        summary = "Your query has a syntax error and could not be evaluated."
+    if query_failed:
+        detail = student_parse.error or execution_error
+        summary = f"Your query could not be evaluated: {detail}"
     elif is_alt_correct:
         summary = (
             f"Excellent. Your query produces the correct output and passes all edge cases. "
@@ -1415,5 +1444,6 @@ def generate_feedback(
         misconceptions=misconceptions,
         raw_misconceptions=raw_misconceptions,
         unsupported_misconceptions=unsupported,
+        query_failed=query_failed,
         summary=summary,
     )

@@ -26,6 +26,9 @@ from backend.query_executor import (
 from backend.provenance import compute_provenance
 from backend.feedback_generator import generate_feedback
 from backend.problems import PROBLEMS, get_problem, get_all_problems
+from backend.evidence import (
+    build_bundle, collect_schema_facts, llm_invocation_reason
+)
 from database.init_db import init_main_db, init_edge_dbs, get_connection
 
 app = Flask(
@@ -53,6 +56,27 @@ def initialize():
 
 # Initialize on import (runs when gunicorn loads the module)
 initialize()
+
+
+# The schema channel E_con is a property of the database, not of a submission,
+# so the PRAGMA sweep runs once rather than on every analysis request.
+_SCHEMA_ITEMS = None
+
+
+def schema_items():
+    """Cached E_con items for the main instance."""
+    global _SCHEMA_ITEMS
+    if _SCHEMA_ITEMS is None:
+        try:
+            conn = get_connection(MAIN_DB)
+            try:
+                _SCHEMA_ITEMS = collect_schema_facts(conn)
+            finally:
+                conn.close()
+        except Exception as e:
+            print(f"[EVIDENCE] Schema facts unavailable: {e}")
+            _SCHEMA_ITEMS = []
+    return _SCHEMA_ITEMS
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -216,12 +240,55 @@ def analyze():
         execution_error=exec_error,
     )
 
+    # ── Step 9: Stage 1 evidence bundle + LLM gate ──
+    # A reshaping of everything above into the six channels the journal
+    # architecture consumes. Nothing here is recomputed, so a failure costs the
+    # evidence view only and must never take down the deterministic response.
+    parsing_payload = {
+        "base":    base_parse.to_dict(),
+        "student": student_parse.to_dict(),
+        "diffs":   [{"path": d.path, "base": d.base_value,
+                      "student": d.student_value, "type": d.diff_type}
+                     for d in diffs],
+    }
+    try:
+        bundle = build_bundle(
+            problem=problem,
+            student_query=student_sql,
+            parsing=parsing_payload,
+            execution={"base": base_result.to_dict(),
+                       "student": student_result.to_dict()},
+            comparison=comparison.to_dict(),
+            provenance=prov_trace,
+            edge_cases=edge_results,
+            counterexample=counterexample,
+            schema_items=schema_items(),
+        )
+        gate_reason = llm_invocation_reason(
+            comparison.to_dict(),
+            report.misconceptions,
+            report.unsupported_misconceptions,
+            edge_results,
+            report.query_failed,
+        )
+        evidence_payload = {
+            "channels": {ch: [i.id for i in getattr(bundle, ch)]
+                         for ch in bundle.CHANNELS},
+            "packet": bundle.to_packet(),
+        }
+    except Exception as e:
+        print(f"[EVIDENCE] Bundle construction failed: {e}")
+        evidence_payload = {"error": str(e), "channels": {}, "packet": None}
+        gate_reason = None
+
     return success({
         "problem": {
             "id": problem["id"],
             "title": problem["title"],
             "type": problem_type,
         },
+        "evidence": evidence_payload,
+        "llm_gate": {"invoke": gate_reason is not None, "reason": gate_reason},
         "parsing": {
             "base":    base_parse.to_dict(),
             "student": student_parse.to_dict(),

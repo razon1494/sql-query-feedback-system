@@ -948,7 +948,7 @@ function renderAll(d) {
   renderAST(d.parsing);
   renderProvenance(d.provenance);
   renderEdgeCases(d.edge_cases);
-  renderMisconceptions(d.feedback.misconceptions, d.feedback.unsupported_misconceptions);
+  renderMisconceptions(d.feedback.misconceptions, d.feedback.unsupported_misconceptions, d.feedback.query_failed);
   // Update Feedback button preview with score
   const preview = document.getElementById('ns-score-preview');
   if (preview) {
@@ -1207,7 +1207,7 @@ function renderEdgeCases(cases) {
   `).join('');
 }
 
-function renderMisconceptions(misc, withheld) {
+function renderMisconceptions(misc, withheld, queryFailed) {
   const rel = misc || [];
   const wh  = withheld || [];
   let html = '';
@@ -1241,7 +1241,9 @@ function renderMisconceptions(misc, withheld) {
       <span class="gate-count">Withheld <b>${wh.length}</b></span>
     </div>`;
 
-  if (!rel.length) {
+  if (!rel.length && queryFailed) {
+    html += `<div class="misc-card"><div class="misc-icon">⛔</div><div><div class="misc-title">Not assessed — the query did not run</div><div class="misc-desc">The engine rejected this query, so it produced no result to reason about. Fix the error reported on the Feedback tab and submit again.</div></div></div>`;
+  } else if (!rel.length) {
     html += `<div class="misc-card misc-none"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
   } else {
     html += rel.map(m => `
