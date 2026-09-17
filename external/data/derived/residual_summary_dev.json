@@ -1,0 +1,34 @@
+{
+  "families": {
+    "F3a": {
+      "generated": 185,
+      "residual": 168,
+      "latent": 16,
+      "non_residual": 1
+    },
+    "F3b": {
+      "generated": 81,
+      "latent": 41,
+      "residual": 40
+    },
+    "F3c": {
+      "generated": 333,
+      "residual": 191,
+      "latent": 80,
+      "non_residual": 2,
+      "exec_error": 60
+    }
+  },
+  "total_generated": 599,
+  "total_residual": 399,
+  "source": "both",
+  "residual_by_source": {
+    "university": 20,
+    "spider": 379
+  },
+  "sample": {
+    "per_family_target": 30,
+    "seed": 20260916,
+    "drawn": 90
+  }
+}
