@@ -122,10 +122,16 @@ PROBES: List[Dict] = [
         "gold": "SELECT name, country FROM artist",
         "candidate": "SELECT name, COALESCE(country, 'unknown') FROM artist",
         "ptype": "JOIN", "candidate_is_correct": False,   # header differs
-        "expected_class": "DEGRADED",
-        "note": "Result comparison keys on column NAMES: same data under a renamed "
-                "header is judged non-equivalent, with no misconception label - "
-                "column-name sensitivity of the output comparator (probe-discovered).",
+        "expected_class": "MISSED",
+        "note": "Pins the F2 repair. The comparator used to key on column NAMES, so "
+                "the same data under a renamed header was judged non-equivalent and "
+                "this probe returned DEGRADED; it now keys on values in column order, "
+                "and the renamed header no longer diverges. What is left is a LATENT "
+                "case of the F4/F5 kind: COALESCE differs from the bare column only on "
+                "a NULL-bearing instance, and the fixture's artist.country has none. A "
+                "return to name-keying would show up here as DEGRADED again. Exposing "
+                "the residual difference is a job for instance construction, not for "
+                "the comparator.",
     },
     {
         "id": "F2-quoted-ident",
@@ -172,11 +178,16 @@ PROBES: List[Dict] = [
         "candidate": ("SELECT a.name FROM artist a JOIN album al ON a.artist_id = al.artist_id "
                       "JOIN track t ON al.album_id = t.album_id"),
         "ptype": "JOIN", "candidate_is_correct": False,
-        "expected_class": "MISSED",
-        "note": "Double blindness (probe-discovered): MISSING_JOIN covers too-few "
-                "tables only (too-many has no category), AND the set-semantics "
-                "result comparison is duplicate-insensitive, so row multiplication "
-                "is judged output-equivalent - the query passes as alternate-correct.",
+        "expected_class": "DEGRADED",
+        "note": "Was a double blindness when first discovered: MISSING_JOIN covers "
+                "too-few tables only (too-many has no category), AND the set-semantic "
+                "result comparison was duplicate-insensitive, so row multiplication "
+                "was judged output-equivalent and the query passed as alternate-"
+                "correct. The F4 multiset repair closed the second half - the "
+                "duplicate rows now diverge. The first half stands: a too-many-tables "
+                "error still yields no misconception label, so the student is told "
+                "the query is wrong and nothing more. Wrong, undiagnosed - which is "
+                "what makes F3c a residual family worth probing.",
     },
 
     # ── F4 FILTER-BLINDNESS ─────────────────────────────────────────────────

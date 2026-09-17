@@ -64,14 +64,14 @@
    "id": "F2-func-comma",
    "category": "F2_PARSER_PRECISION",
    "desc": "Function call renames output column (comma inside args)",
-   "outcome": "DEGRADED",
-   "expected": "DEGRADED",
+   "outcome": "MISSED",
+   "expected": "MISSED",
    "as_expected": true,
    "detected": [],
    "raw": [],
-   "equivalent": false,
+   "equivalent": true,
    "exec_error": null,
-   "note": "Result comparison keys on column NAMES: same data under a renamed header is judged non-equivalent, with no misconception label - column-name sensitivity of the output comparator (probe-discovered)."
+   "note": "Pins the F2 repair. The comparator used to key on column NAMES, so the same data under a renamed header was judged non-equivalent and this probe returned DEGRADED; it now keys on values in column order, and the renamed header no longer diverges. What is left is a LATENT case of the F4/F5 kind: COALESCE differs from the bare column only on a NULL-bearing instance, and the fixture's artist.country has none. A return to name-keying would show up here as DEGRADED again. Exposing the residual difference is a job for instance construction, not for the comparator."
   },
   {
    "id": "F2-quoted-ident",
@@ -116,14 +116,14 @@
    "id": "F3-extra-join",
    "category": "F3_DETECTOR_GAPS",
    "desc": "Extraneous join multiplying duplicate rows (student adds a table)",
-   "outcome": "MISSED",
-   "expected": "MISSED",
+   "outcome": "DEGRADED",
+   "expected": "DEGRADED",
    "as_expected": true,
    "detected": [],
    "raw": [],
-   "equivalent": true,
+   "equivalent": false,
    "exec_error": null,
-   "note": "Double blindness (probe-discovered): MISSING_JOIN covers too-few tables only (too-many has no category), AND the set-semantics result comparison is duplicate-insensitive, so row multiplication is judged output-equivalent - the query passes as alternate-correct."
+   "note": "Was a double blindness when first discovered: MISSING_JOIN covers too-few tables only (too-many has no category), AND the set-semantic result comparison was duplicate-insensitive, so row multiplication was judged output-equivalent and the query passed as alternate-correct. The F4 multiset repair closed the second half - the duplicate rows now diverge. The first half stands: a too-many-tables error still yields no misconception label, so the student is told the query is wrong and nothing more. Wrong, undiagnosed - which is what makes F3c a residual family worth probing."
   },
   {
    "id": "F4-left-latent",
