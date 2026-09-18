@@ -96,6 +96,11 @@ validated against independent human annotation, which remains future work.
 
 ```bash
 # reproduce (after placing Spider under external/data/spider/ - see external/spider/download.py)
+# Create the local databases FIRST. The web app builds them on startup, but the
+# scripts below do not, and the evidence gate consults them: without this step
+# gen_wrong.py reports 543/547 (99.3%) instead of the published 545/547 (99.6%).
+python -c "from database.init_db import init_main_db, init_edge_dbs; init_main_db(); init_edge_dbs()"
+
 python external/spider/ingest.py --split dev        # smoke test
 python external/spider/classify.py --split dev     # problem-type distribution
 python external/spider/gen_alternates.py           # FP experiment
@@ -138,7 +143,9 @@ python app.py
 
 Open your browser at **http://localhost:5000**
 
-> The databases (SQLite) are created automatically on first run. No configuration needed.
+> The databases (SQLite) are created automatically when the web app starts. No
+> configuration needed. The reproduction scripts do **not** start the app, so
+> create them explicitly first — see the reproduce block above.
 
 ---
 
