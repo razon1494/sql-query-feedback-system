@@ -29,12 +29,16 @@ The system has a **special focus on relational division queries** — the hardes
 ## 🚀 Quick Demo (Try This First)
 
 1. Open **[https://sql-query-feedback-system.onrender.com](https://sql-query-feedback-system.onrender.com)**
-2. Select **"Division: Students Who Took ALL DB Courses"** in the left sidebar
-3. Click **"Load Wrong Answer"**
-4. Click **▶ Analyze Query**
-5. Score: **65/100** — Nancy is incorrectly included (she took CS360 but not CS460)
-6. Click the **Provenance** tab to see exactly *why* the IN operator fails
-7. Go back to Editor → Click **"Load Correct Answer"** → **100/100** ✓
+2. Select **"Running example: who completed every database course?"** (the paper's Fig. 1)
+3. Click **"Load Wrong Answer"**, then **▶ Analyze Query**
+4. Status: **Not correct yet**. Nancy and Omar are extra rows, and the Misconceptions tab releases
+   *Using IN instead of NOT EXISTS for division*
+5. Select **"Running example: when the data hides the error"** and repeat: the output now matches,
+   yet a constructed partial-enrolment database still exposes the error and the diagnosis is released
+
+The site opens in the **student view**: the reference query, the proposals the evidence gate
+withheld and the score are not sent to the browser. An instructor signs in with a PIN
+(top right) to see them, as in Fig. 2 of the paper.
 
 ---
 
@@ -188,10 +192,13 @@ sql-query-feedback-system/
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/problems` | List all 30 problems |
-| `GET` | `/api/problems/<id>` | Problem details + reference query |
-| `GET` | `/api/schema` | Database schema + sample rows |
-| `POST` | `/api/analyze` | **Full 6-step analysis pipeline** |
+| `GET` | `/api/session` | Current role: `student` or `instructor` |
+| `POST` | `/api/instructor/login` | Sign in with `{"pin": "..."}` (PIN from `INSTRUCTOR_PIN`) |
+| `POST` | `/api/instructor/logout` | Back to the student view |
+| `GET` | `/api/problems` | List the 30 problems plus the 2 running-example problems |
+| `GET` | `/api/problems/<id>` | Problem details; the reference query for instructors only |
+| `GET` | `/api/schema?problem_id=<id>` | Schema + sample rows of that problem's database |
+| `POST` | `/api/analyze` | **Full 6-step analysis pipeline** (reduced to the student's view unless signed in) |
 | `POST` | `/api/execute` | Execute a single query |
 | `GET` | `/api/health` | Health check |
 
@@ -323,7 +330,9 @@ This prototype implements ideas from the following papers, all referenced in the
 This app is deployed on a **paid Render.com instance**:
 - ✅ Public HTTPS URL, always on — no spin-down, no cold start
 - ✅ Auto-deploys on every `git push` to `main`
-- ℹ️ SQLite databases are re-created on each deploy (stateless — all data is seeded from `init_db.py`)
+- ℹ️ SQLite databases are re-created on each deploy (stateless — all data is seeded from `init_db.py` and `demo_dbs.py`)
+- 🔑 Environment variables: `INSTRUCTOR_PIN` (set it in the dashboard; while unset, instructor mode is off)
+  and `SECRET_KEY` (signs the session cookie; `render.yaml` asks Render to generate it)
 
 ---
 

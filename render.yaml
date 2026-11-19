@@ -7,3 +7,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      # Signs the instructor session cookie; generated once by Render.
+      - key: SECRET_KEY
+        generateValue: true
+      # The instructor PIN. Set its value in the Render dashboard; never commit it.
+      # While unset, instructor mode is off and every visitor sees the student view.
+      - key: INSTRUCTOR_PIN
+        sync: false

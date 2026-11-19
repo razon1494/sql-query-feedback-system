@@ -758,14 +758,18 @@ AND NOT EXISTS (
 
 
 def get_problem(problem_id: str):
-    return next((p for p in PROBLEMS if p["id"] == problem_id), None)
+    """Look up a problem; the running-example problems are found too."""
+    from backend.demo_problems import DEMO_PROBLEMS
+    return next((p for p in [*PROBLEMS, *DEMO_PROBLEMS] if p["id"] == problem_id), None)
 
 
 def get_all_problems():
+    """Problem summaries for the web sidebar: the running example first."""
+    from backend.demo_problems import DEMO_PROBLEMS
     return [{
         "id": p["id"],
         "title": p["title"],
         "type": p["type"],
         "difficulty": p["difficulty"],
         "concepts": p["concepts"],
-    } for p in PROBLEMS]
+    } for p in [*DEMO_PROBLEMS, *PROBLEMS]]

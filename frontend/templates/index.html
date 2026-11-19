@@ -388,6 +388,33 @@ tr.match td{background:#f0fdf4}
     body.figure-mode .withheld-block{margin-top:.7rem;padding:11px 13px}
     body.figure-mode .withheld-note{margin-top:5px}
     body.figure-mode .withheld-card{margin-top:7px}
+/* ── Student / instructor views ──────────────────────────────
+   Students see their own result, a status and released diagnoses.
+   Everything marked .instructor-only is also withheld by the API. */
+body:not(.is-instructor) .instructor-only{display:none !important}
+body:not(.is-instructor) .q-row,
+body:not(.is-instructor) .results-grid{grid-template-columns:1fr !important}
+.role-badge{font-size:.62rem;font-weight:700;color:#92400e;background:#fef3c7;
+  border:1px solid #fcd34d;border-radius:20px;padding:2px 9px;align-self:center}
+.status-pill{font-size:.74rem;font-weight:700;padding:4px 12px;border-radius:20px;
+  border:1px solid transparent;white-space:nowrap}
+.status-pill.st-correct{background:#dcfce7;color:#15803d;border-color:#86efac}
+.status-pill.st-matches_course_db{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+.status-pill.st-incorrect{background:#fee2e2;color:#b91c1c;border-color:#fecaca}
+.status-pill.st-not_run{background:var(--surface3);color:var(--text2);border-color:var(--border)}
+.status-detail{font-size:.68rem;color:var(--text3);max-width:28rem;line-height:1.4}
+.pin-backdrop{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;
+  align-items:center;justify-content:center;z-index:500}
+.pin-backdrop[hidden]{display:none}
+.pin-card{background:var(--surface);border-radius:12px;padding:1.2rem 1.3rem;width:min(22rem,calc(100vw - 2rem));
+  box-shadow:0 12px 40px rgba(0,0,0,.25);display:flex;flex-direction:column;gap:.6rem}
+.pin-title{font-weight:700;font-size:.95rem;color:var(--text)}
+.pin-sub{font-size:.74rem;color:var(--text2);line-height:1.5}
+.pin-card input{font-family:var(--mono);font-size:.95rem;padding:.5rem .65rem;border:1px solid var(--border2);
+  border-radius:8px;letter-spacing:.2em}
+.pin-error{font-size:.72rem;color:var(--bad);min-height:1em}
+.pin-actions{display:flex;justify-content:flex-end;gap:.5rem}
+#status-wrap + .score-wrap{margin-left:.8rem}
 </style>
 </head>
 <body>
@@ -401,8 +428,26 @@ tr.match td{background:#f0fdf4}
   <nav>
     <button class="nav-btn active" onclick="switchView('main')">Feedback Engine</button>
     <button class="nav-btn" onclick="switchView('about')">Architecture</button>
+    <span class="role-badge instructor-only">Instructor view</span>
+    <button class="nav-btn" id="role-btn" onclick="onRoleButton()" style="display:none">Instructor sign-in</button>
   </nav>
 </header>
+
+<!-- Instructor PIN sign-in (checked on the server) -->
+<div class="pin-backdrop" id="pin-modal" hidden>
+  <form class="pin-card" onsubmit="submitPin(event)">
+    <div class="pin-title">Instructor sign-in</div>
+    <div class="pin-sub">Enter the instructor PIN to see the reference query, the proposals the
+      evidence gate withheld, and the score.</div>
+    <input type="password" id="pin-input" autocomplete="current-password" maxlength="64" required
+           aria-label="Instructor PIN">
+    <div class="pin-error" id="pin-error" role="alert"></div>
+    <div class="pin-actions">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="closePinModal()">Cancel</button>
+      <button type="submit" class="btn btn-primary btn-sm">Sign in</button>
+    </div>
+  </form>
+</div>
 
 <!-- MAIN VIEW -->
 <div class="app" id="main-view">
@@ -420,7 +465,7 @@ tr.match td{background:#f0fdf4}
         <span class="pulse" id="feedback-pulse" style="display:none"></span>
         <span class="tab-hint">Run ▶ Analyze Query first</span>
       </button>
-      <button class="tab tab-locked" id="tab-ast" data-tab="ast" onclick="handleLockedTab(this,'ast')">
+      <button class="tab tab-locked instructor-only" id="tab-ast" data-tab="ast" onclick="handleLockedTab(this,'ast')">
         <span class="tab-num">3</span> 🌳 AST Diff
         <span class="tab-hint">Run ▶ Analyze Query first</span>
       </button>
@@ -472,7 +517,7 @@ tr.match td{background:#f0fdf4}
       </div>
       <div class="info-box" id="prob-desc" style="background:#eff4ff;border-color:#bfdbfe"></div>
       <div class="q-row">
-        <div class="q-box">
+        <div class="q-box instructor-only">
           <div class="q-header">
             <div class="q-title"><span class="dot dg"></span>Base Query (Reference)</div>
             <span style="font-size:.65rem;color:var(--text3)">Read-only</span>
@@ -491,13 +536,17 @@ tr.match td{background:#f0fdf4}
         <button class="btn btn-primary" onclick="runAnalysis()" title="Shortcut: Ctrl+Enter">
           <span id="run-lbl">▶ Analyze Query</span>
         </button>
-        <button class="btn btn-secondary btn-sm" onclick="loadSample('wrong')">Load Wrong Answer</button>
-        <button class="btn btn-secondary btn-sm" onclick="loadSample('correct')">Load Correct Answer</button>
-        <button class="btn btn-secondary btn-sm" onclick="loadSample('partial')">Load Partial Answer</button>
-        <button class="btn btn-secondary btn-sm" id="btn-alternate" style="display:none"
+        <button class="btn btn-secondary btn-sm" data-sample="wrong" onclick="loadSample('wrong')">Load Wrong Answer</button>
+        <button class="btn btn-secondary btn-sm instructor-only" data-sample="correct" onclick="loadSample('correct')">Load Correct Answer</button>
+        <button class="btn btn-secondary btn-sm" data-sample="partial" onclick="loadSample('partial')">Load Partial Answer</button>
+        <button class="btn btn-secondary btn-sm instructor-only" data-sample="alternate"
                 onclick="loadSample('alternate')">Load Alternate-Correct</button>
         <div id="attempt-badge" style="display:none;font-size:.7rem;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-family:var(--mono)">Attempt <span id="attempt-num">1</span></div>
-        <div class="score-wrap" id="score-wrap" style="display:none">
+        <div id="status-wrap" style="display:none;margin-left:auto;align-items:center;gap:.6rem">
+          <span class="status-detail" id="status-detail"></span>
+          <span class="status-pill" id="status-pill"></span>
+        </div>
+        <div class="score-wrap instructor-only" id="score-wrap" style="display:none">
           <div>
             <div style="font-size:.68rem;color:var(--text2);font-weight:500">Score</div>
             <div style="font-family:var(--mono);font-size:1.15rem;font-weight:700" id="score-num">—</div>
@@ -523,8 +572,8 @@ tr.match td{background:#f0fdf4}
         </div>
 
         <!-- Side-by-side result tables -->
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:1rem">
-          <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)">
+        <div class="results-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:.9rem;margin-bottom:1rem">
+          <div class="instructor-only" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)">
             <div style="display:flex;align-items:center;gap:.4rem;padding:.5rem .9rem;
               background:var(--surface3);border-bottom:1px solid var(--border);font-size:.7rem;font-weight:700">
               <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0"></span>
@@ -558,10 +607,10 @@ tr.match td{background:#f0fdf4}
               <span class="ns-num">2</span>
               <span class="ns-info">
                 <span class="ns-title">📋 Feedback</span>
-                <span class="ns-sub" id="ns-score-preview">Score &amp; corrections</span>
+                <span class="ns-sub" id="ns-score-preview">Status &amp; corrections</span>
               </span>
             </button>
-            <button onclick="goToTab('ast')" class="nav-step-btn">
+            <button onclick="goToTab('ast')" class="nav-step-btn instructor-only">
               <span class="ns-num">3</span>
               <span class="ns-info">
                 <span class="ns-title">🌳 AST Diff</span>
@@ -599,13 +648,17 @@ tr.match td{background:#f0fdf4}
     <div class="panel" id="panel-feedback">
       <div id="fb-empty" class="empty"><div class="empty-icon">📋</div><div class="empty-txt">Run analysis on the Editor tab to see detailed feedback.</div></div>
       <div id="fb-content" style="display:none">
-        <div class="sec">Grading Breakdown</div>
-        <div class="grade-box" id="grade-box"></div>
+        <div id="fb-summary" style="font-size:.78rem;color:var(--text2);line-height:1.6;background:var(--surface2);
+          border:1px solid var(--border);padding:.6rem .8rem;border-radius:8px;margin-bottom:.9rem"></div>
+        <div class="instructor-only">
+          <div class="sec">Grading Breakdown <span style="font-weight:500;text-transform:none;letter-spacing:0;color:var(--text3)">· unvalidated prototype weights (paper Sec. 3)</span></div>
+          <div class="grade-box" id="grade-box"></div>
+        </div>
         <div class="sec">Feedback Items</div>
         <div class="fb-grid" id="fb-cards"></div>
 
-        <!-- Reference solution collapsible -->
-        <div id="ref-solution-wrap" style="display:none">
+        <!-- Reference solution collapsible (instructor only) -->
+        <div id="ref-solution-wrap" class="instructor-only" style="display:none">
           <div class="sec">Reference Solution</div>
           <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
             overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)">
@@ -734,66 +787,9 @@ let currentProblemId = null;
 let problems = [];
 let attemptCount = 0;
 let completedProblems = new Set();
-let sampleAnswers = {
-  // ── Division ──
-  div_db_courses: {
-    wrong:   `SELECT s.StuID, s.Name\nFROM Students s\nWHERE s.StuID IN (\n    SELECT t.StuID FROM Takes t\n    WHERE t.CourseID IN (\n        SELECT c.CourseID FROM Courses c WHERE c."Group" = 'DB'\n    )\n);`,
-    correct: `SELECT s.StuID, s.Name\nFROM Students s\nWHERE NOT EXISTS (\n    SELECT c.CourseID FROM Courses c\n    WHERE c."Group" = 'DB'\n    AND c.CourseID NOT IN (\n        SELECT t.CourseID FROM Takes t WHERE t.StuID = s.StuID\n    )\n);`,
-    partial: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB'\nGROUP BY s.StuID, s.Name\nHAVING COUNT(DISTINCT t.CourseID) >= 2;`,
-    // Correct by counting rather than negating: output-equivalent to the
-    // reference, but sharing almost none of its shape. A shape-only tier
-    // flags it; the evidence gate withholds that proposal.
-    alternate: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB'\nGROUP BY s.StuID, s.Name\nHAVING COUNT(DISTINCT c.CourseID) = (\n    SELECT COUNT(*) FROM Courses WHERE "Group" = 'DB'\n);`,
-  },
-  div_all_cs_courses: {
-    wrong:   `SELECT s.StuID, s.Name FROM Students s\nWHERE s.Major = 'CS'\nAND s.StuID IN (\n    SELECT t.StuID FROM Takes t\n    JOIN Courses c ON t.CourseID = c.CourseID\n    WHERE c."Group" = 'CS'\n);`,
-    correct: `SELECT s.StuID, s.Name\nFROM Students s\nWHERE s.Major = 'CS'\nAND NOT EXISTS (\n    SELECT c.CourseID FROM Courses c\n    WHERE c."Group" = 'CS'\n    AND c.CourseID NOT IN (\n        SELECT t.CourseID FROM Takes t WHERE t.StuID = s.StuID\n    )\n);`,
-    partial: `SELECT s.StuID, s.Name FROM Students s WHERE s.Major = 'CS';`,
-  },
-  div_instructor_all_db: {
-    wrong:   `SELECT i.InstID, i.Name FROM Instructors i\nWHERE i.InstID IN (\n    SELECT tc.InstID FROM Teaches tc\n    WHERE tc.CourseID IN (\n        SELECT c.CourseID FROM Courses c WHERE c."Group" = 'DB'\n    )\n);`,
-    correct: `SELECT i.InstID, i.Name\nFROM Instructors i\nWHERE NOT EXISTS (\n    SELECT c.CourseID FROM Courses c\n    WHERE c."Group" = 'DB'\n    AND c.CourseID NOT IN (\n        SELECT tc.CourseID FROM Teaches tc WHERE tc.InstID = i.InstID\n    )\n);`,
-    partial: `SELECT i.InstID, i.Name FROM Instructors i\nJOIN Teaches tc ON i.InstID = tc.InstID\nJOIN Courses c ON tc.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
-  },
-  // ── Join ──
-  join_cs360: {
-    wrong:   `SELECT StuID, Name FROM Students WHERE StuID = 'S1';`,
-    correct: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nWHERE t.CourseID = 'CS360';`,
-    partial: `SELECT StuID FROM Takes WHERE CourseID = 'CS360';`,
-  },
-  join_instructor_courses: {
-    wrong:   `SELECT i.Name, c.Title FROM Instructors i, Courses c;`,
-    correct: `SELECT i.Name AS InstructorName, c.Title AS CourseTitle\nFROM Instructors i\nJOIN Teaches tc ON i.InstID = tc.InstID\nJOIN Courses c ON tc.CourseID = c.CourseID\nORDER BY i.Name;`,
-    partial: `SELECT i.Name, tc.CourseID FROM Instructors i\nJOIN Teaches tc ON i.InstID = tc.InstID;`,
-  },
-  join_student_grades: {
-    wrong:   `SELECT s.Name, t.Grade FROM Students s, Takes t;`,
-    correct: `SELECT s.Name AS StudentName, c.Title AS CourseTitle, t.Grade\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nORDER BY s.Name, c.Title;`,
-    partial: `SELECT s.Name, t.CourseID, t.Grade\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID;`,
-  },
-  // ── Aggregation ──
-  agg_multi_course: {
-    wrong:   `SELECT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nWHERE t.CourseID IS NOT NULL;`,
-    correct: `SELECT s.StuID, s.Name, COUNT(t.CourseID) AS CourseCount\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nGROUP BY s.StuID, s.Name\nHAVING COUNT(t.CourseID) > 1;`,
-    partial: `SELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nGROUP BY s.StuID, s.Name;`,
-  },
-  agg_avg_credits: {
-    wrong:   `SELECT s.StuID, s.Name, COUNT(t.CourseID) AS AvgCredits\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nGROUP BY s.StuID, s.Name;`,
-    correct: `SELECT s.StuID, s.Name, AVG(c.Credits) AS AvgCredits\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nGROUP BY s.StuID, s.Name;`,
-    partial: `SELECT s.StuID, s.Name, SUM(c.Credits) AS AvgCredits\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nGROUP BY s.StuID, s.Name;`,
-  },
-  // ── Set Operations ──
-  set_no_db: {
-    wrong:   `SELECT StuID, Name FROM Students\nWHERE StuID NOT IN (SELECT StuID FROM Takes);`,
-    correct: `SELECT StuID, Name FROM Students\nEXCEPT\nSELECT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
-    partial: `SELECT s.StuID, s.Name FROM Students s\nWHERE s.StuID NOT IN (\n    SELECT t.StuID FROM Takes t\n    JOIN Courses c ON t.CourseID = c.CourseID\n    WHERE c."Group" = 'DB'\n);`,
-  },
-  set_union_cs_db: {
-    wrong:   `SELECT DISTINCT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" IN ('CS','DB');`,
-    correct: `SELECT DISTINCT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'CS'\nUNION\nSELECT DISTINCT s.StuID, s.Name\nFROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
-    partial: `SELECT DISTINCT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'CS'\nUNION ALL\nSELECT DISTINCT s.StuID, s.Name FROM Students s\nJOIN Takes t ON s.StuID = t.StuID\nJOIN Courses c ON t.CourseID = c.CourseID\nWHERE c."Group" = 'DB';`,
-  },
-};
+let currentSamples = {};   // served per role by /api/problems/<id>
+let currentRole = 'student';
+let instructorAvailable = false;
 
 // ═══ INIT ═══
 window.onload = async () => {
@@ -801,9 +797,83 @@ window.onload = async () => {
   if (new URLSearchParams(location.search).has('figure')) {
     document.body.classList.add('figure-mode');
   }
+  await loadSession();
   await loadProblems();
-  await loadSchema();
 };
+
+// ═══ ROLE: student by default; instructor after a PIN checked on the server ═══
+async function loadSession() {
+  try {
+    const res = await fetch('/api/session');
+    const data = await res.json();
+    applyRole(data.data.role, data.data.instructor_available);
+  } catch (e) {
+    applyRole('student', false);
+  }
+}
+
+function applyRole(role, available) {
+  currentRole = role === 'instructor' ? 'instructor' : 'student';
+  if (available !== undefined) instructorAvailable = Boolean(available);
+  document.body.classList.toggle('is-instructor', currentRole === 'instructor');
+  const btn = document.getElementById('role-btn');
+  btn.style.display = instructorAvailable ? '' : 'none';
+  btn.textContent = currentRole === 'instructor' ? 'Sign out' : 'Instructor sign-in';
+}
+
+async function onRoleButton() {
+  if (currentRole === 'instructor') {
+    try {
+      await fetch('/api/instructor/logout', {method: 'POST'});
+    } catch (e) {
+      alert('Could not sign out: ' + e.message);
+      return;
+    }
+    applyRole('student');
+    await reloadCurrentProblem();
+    return;
+  }
+  openPinModal();
+}
+
+function openPinModal() {
+  document.getElementById('pin-error').textContent = '';
+  document.getElementById('pin-input').value = '';
+  document.getElementById('pin-modal').hidden = false;
+  document.getElementById('pin-input').focus();
+}
+
+function closePinModal() {
+  document.getElementById('pin-modal').hidden = true;
+}
+
+async function submitPin(ev) {
+  ev.preventDefault();
+  const errEl = document.getElementById('pin-error');
+  const pin = document.getElementById('pin-input').value;
+  try {
+    const res = await fetch('/api/instructor/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({pin})
+    });
+    const data = await res.json();
+    if (data.status !== 'ok') {
+      errEl.textContent = data.message || 'Sign-in failed.';
+      return;
+    }
+  } catch (e) {
+    errEl.textContent = 'Server error: ' + e.message;
+    return;
+  }
+  closePinModal();
+  applyRole('instructor');
+  await reloadCurrentProblem();
+}
+
+async function reloadCurrentProblem() {
+  if (currentProblemId) await selectProblem(currentProblemId);
+}
 
 async function loadProblems() {
   const res = await fetch('/api/problems');
@@ -864,14 +934,15 @@ async function selectProblem(id) {
   document.getElementById('prob-desc').innerHTML =
     `<strong>${p.title}</strong><br><span style="color:var(--text2)">${p.description}</span>
      ${p.hint ? `<br><span style="color:var(--accent2);font-size:.7rem">💡 Hint: ${p.hint}</span>` : ''}`;
-  document.getElementById('base-q').value = p.base_query;
+  document.getElementById('base-q').value = p.base_query || '';
   document.getElementById('student-q').value = '';
-  const altBtn = document.getElementById('btn-alternate');
-  if (altBtn) {
-    const s = sampleAnswers[id];
-    altBtn.style.display = (s && s.alternate) ? '' : 'none';
-  }
+  currentSamples = p.samples || {};
+  document.querySelectorAll('[data-sample]').forEach(b => {
+    b.style.display = currentSamples[b.dataset.sample] ? '' : 'none';
+  });
+  loadSchema(id);
   document.getElementById('score-wrap').style.display = 'none';
+  document.getElementById('status-wrap').style.display = 'none';
   document.getElementById('quick-results').style.display = 'none';
   document.getElementById('feedback-pulse').style.display = 'none';
   clearResults();
@@ -891,12 +962,15 @@ function clearResults() {
   document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">Run analysis first.</div></div>`;
   document.getElementById('misc-content').innerHTML = `<div class="empty"><div class="empty-icon">🧠</div><div class="empty-txt">Run analysis first.</div></div>`;
   const es = document.getElementById('edge-summary'); if(es) es.innerHTML='';
+  // Drop instructor-side content too, so nothing stays hidden in the page after sign-out.
+  ['base-tbl', 'base-row-count', 'stu-tbl', 'grade-box', 'fb-cards', 'fb-summary', 'ref-solution-body']
+    .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+  document.getElementById('ref-solution-wrap').style.display = 'none';
   lockTabs();
 }
 
 function loadSample(type) {
-  const samples = sampleAnswers[currentProblemId];
-  if (samples && samples[type]) document.getElementById('student-q').value = samples[type];
+  if (currentSamples[type]) document.getElementById('student-q').value = currentSamples[type];
 }
 
 // ═══ ANALYSIS ═══
@@ -942,21 +1016,35 @@ async function runAnalysis() {
 
 // ═══ RENDER ALL ═══
 function renderAll(d) {
-  renderScore(d.feedback);
+  const hasScore = d.feedback.total_score !== undefined;   // instructor view only
+  renderStatus(d.status);
+  if (hasScore) renderScore(d.feedback);
   renderResults(d.execution, d.comparison);
   renderFeedback(d.feedback);
-  renderAST(d.parsing);
+  if (d.parsing) renderAST(d.parsing);                       // instructor view only
   renderProvenance(d.provenance);
   renderEdgeCases(d.edge_cases);
-  renderMisconceptions(d.feedback.misconceptions, d.feedback.unsupported_misconceptions);
-  // Update Feedback button preview with score
+  renderMisconceptions(d.feedback.misconceptions, d.feedback.unsupported_misconceptions, d.status);
+  // Feedback button preview: the score for instructors, the status for students
   const preview = document.getElementById('ns-score-preview');
-  if (preview) {
+  if (preview && hasScore) {
     const s = d.feedback.total_score;
     const color = s>=85?'#15803d':s>=60?'#92400e':'#b91c1c';
     const bg    = s>=85?'#dcfce7':s>=60?'#fef3c7':'#fee2e2';
     preview.innerHTML = `Score: <strong style="color:${color};background:${bg};padding:1px 5px;border-radius:4px">${s}/100</strong>`;
+  } else if (preview && d.status) {
+    preview.textContent = d.status.label;
   }
+}
+
+function renderStatus(st) {
+  const wrap = document.getElementById('status-wrap');
+  if (!st) { wrap.style.display = 'none'; return; }
+  const pill = document.getElementById('status-pill');
+  pill.className = 'status-pill st-' + st.code;
+  pill.textContent = st.label;
+  document.getElementById('status-detail').textContent = st.detail || '';
+  wrap.style.display = 'flex';
 }
 
 function renderScore(fb) {
@@ -977,12 +1065,12 @@ function renderScore(fb) {
 function renderResults(exec, comp) {
   document.getElementById('quick-results').style.display = 'block';
 
-  // Tables
-  document.getElementById('base-tbl').innerHTML = makeTable(exec.base.rows, exec.base.columns, []);
+  // Tables (the reference's rows reach the instructor view only)
+  if (exec.base) {
+    document.getElementById('base-tbl').innerHTML = makeTable(exec.base.rows, exec.base.columns, []);
+    document.getElementById('base-row-count').textContent = exec.base.row_count + ' row(s)';
+  }
   document.getElementById('stu-tbl').innerHTML  = makeTable(exec.student.rows, exec.student.columns, comp.extra_rows||[]);
-
-  // Row count labels
-  document.getElementById('base-row-count').textContent = exec.base.row_count + ' row(s)';
   document.getElementById('stu-row-count').textContent  = exec.student.row_count + ' row(s)';
 
   // Equivalence badge
@@ -993,7 +1081,7 @@ function renderResults(exec, comp) {
     badge.style.cssText = 'background:#dcfce7;color:#15803d;font-size:.72rem;padding:3px 12px;border-radius:20px;font-weight:700;margin-left:1rem;flex-shrink:0';
   } else {
     const extra   = (comp.extra_rows||[]).length;
-    const missing = (comp.missing_rows||[]).length;
+    const missing = comp.missing_rows ? comp.missing_rows.length : (comp.missing_count || 0);
     let msg = '✗ Outputs Differ';
     if (extra)   msg += `  +${extra} extra`;
     if (missing) msg += `  −${missing} missing`;
@@ -1004,7 +1092,9 @@ function renderResults(exec, comp) {
 
 function makeTable(rows, cols, extraRows) {
   if (!rows || !rows.length) return `<div class="tbl-wrap"><div style="padding:.65rem .9rem;font-size:.73rem;color:var(--text3)">∅ Empty result</div></div>`;
-  const extraSet = new Set(extraRows.map(r => JSON.stringify(Object.values(r))));
+  // Key rows by the table's column order: the API serialises row objects with
+  // sorted keys, so Object.values() order would never match.
+  const extraSet = new Set(extraRows.map(r => JSON.stringify(cols.map(c => r[c]))));
   return `<div class="tbl-wrap"><table>
     <thead><tr>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead>
     <tbody>${rows.map(r => {
@@ -1021,8 +1111,9 @@ function makeTable(rows, cols, extraRows) {
 function renderFeedback(fb) {
   document.getElementById('fb-empty').style.display = 'none';
   document.getElementById('fb-content').style.display = 'block';
+  document.getElementById('fb-summary').textContent = fb.summary || '';
   const colors = ['#16a34a','#0891b2','#2563eb','#d97706'];
-  document.getElementById('grade-box').innerHTML =
+  if (fb.components) document.getElementById('grade-box').innerHTML =
     fb.components.map((c,i) => `
       <div class="g-row">
         <div class="g-label">${c.name}</div>
@@ -1034,17 +1125,14 @@ function renderFeedback(fb) {
       display:flex;justify-content:space-between;align-items:center">
       <span style="color:var(--text2);font-size:.78rem;font-weight:500">Total Score</span>
       <span style="font-family:var(--mono);font-weight:700;font-size:1rem;color:${fb.total_score>=85?'var(--good)':fb.total_score>=60?'var(--warn)':'var(--bad)'}">${fb.total_score}/100 — ${scoreLabel(fb.total_score)} <span style="opacity:.6;font-size:.82rem">(${fb.grade_letter})</span></span>
-    </div>
-    <div style="font-size:.73rem;color:var(--text2);margin-top:.5rem;line-height:1.6;background:var(--surface2);padding:.5rem .7rem;border-radius:6px">${esc(fb.summary)}</div>`;
+    </div>`;
 
-  // Show reference solution for wrong answers
+  // Instructor view: offer the reference solution for wrong answers
   const refWrap = document.getElementById('ref-solution-wrap');
   const refBody = document.getElementById('ref-solution-body');
-  if (!fb.is_alternate_correct && fb.total_score < 100) {
-    const prob = problems.find(p => p.id === currentProblemId);
-    const samples = sampleAnswers[currentProblemId];
-    if (samples && samples.correct) {
-      refBody.textContent = samples.correct;
+  if (fb.total_score !== undefined && !fb.is_alternate_correct && fb.total_score < 100) {
+    if (currentSamples.correct) {
+      refBody.textContent = currentSamples.correct;
       refWrap.style.display = 'block';
       document.getElementById('ref-solution-body').style.display = 'none';
       document.getElementById('ref-arrow').textContent = '▼ Show';
@@ -1150,13 +1238,17 @@ function renderProvenance(prov) {
       html += `</div>`;
     }
     if (step.base_tuples||step.student_tuples) {
-      html += `<div class="div-compare">`;
-      html += `<div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.3rem;font-weight:600">BASE (NOT EXISTS)</div><div class="prov-tuples">`;
-      for (const t of (step.base_tuples||[])) {
-        html += `<div class="prov-tuple ${t.type==='correct_include'?'div':''}">${esc(t.label)}</div>`;
+      // The reference's column (base_tuples) reaches the instructor view only.
+      html += `<div class="div-compare"${step.base_tuples ? '' : ' style="grid-template-columns:1fr"'}>`;
+      if (step.base_tuples) {
+        html += `<div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.3rem;font-weight:600">BASE (NOT EXISTS)</div><div class="prov-tuples">`;
+        for (const t of step.base_tuples) {
+          html += `<div class="prov-tuple ${t.type==='correct_include'?'div':''}">${esc(t.label)}</div>`;
+        }
+        html += `</div></div>`;
       }
-      html += `</div></div>`;
-      html += `<div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.3rem;font-weight:600">STUDENT (${esc(step.student_uses||'')})</div><div class="prov-tuples">`;
+      const stuHead = currentRole === 'instructor' ? 'STUDENT' : 'YOUR QUERY';
+      html += `<div><div style="font-size:.65rem;color:var(--text3);margin-bottom:.3rem;font-weight:600">${stuHead} (${esc(step.student_uses||'')})</div><div class="prov-tuples">`;
       for (const t of (step.student_tuples||[])) {
         const cls = t.type==='correct_include'?'div':t.type==='false_positive'?'partial':'';
         html += `<div class="prov-tuple ${cls}">${esc(t.label)}</div>`;
@@ -1199,15 +1291,15 @@ function renderEdgeCases(cases) {
   document.getElementById('edge-content').innerHTML = cases.map(e => `
     <div class="edge-card">
       <div class="edge-title">${esc(e.title)}</div>
-      <div class="edge-r pass">✓ Base: ${e.base_result.row_count} row(s)</div>
-      <div class="edge-r ${e.passed?'pass':'fail'}">${e.passed?'✓':'✗'} Student: ${e.student_result.row_count} row(s)</div>
+      <div class="edge-r pass">✓ Expected: ${e.base_result.row_count} row(s)</div>
+      <div class="edge-r ${e.passed?'pass':'fail'}">${e.passed?'✓':'✗'} ${currentRole==='instructor'?'Student':'Your query'}: ${e.student_result.row_count} row(s)</div>
       <div class="edge-desc">${esc(e.description)}</div>
       ${!e.passed?`<div class="edge-desc" style="color:var(--warn);margin-top:.3rem;font-weight:500">⚡ ${esc(e.tests)}</div>`:''}
     </div>
   `).join('');
 }
 
-function renderMisconceptions(misc, withheld) {
+function renderMisconceptions(misc, withheld, status) {
   const rel = misc || [];
   const wh  = withheld || [];
   let html = '';
@@ -1230,8 +1322,9 @@ function renderMisconceptions(misc, withheld) {
   }
 
   // Name the release rule up front, so the mechanism is legible even when
-  // the gate had nothing to withhold on this submission.
-  html += `
+  // the gate had nothing to withhold on this submission. Instructor view
+  // only: the counts would tell a student that an accusation existed.
+  if (currentRole === 'instructor') html += `
     <div class="gate-bar">
       <span class="gate-rule">release(m) = proposed(m) AND evidence supports(m)</span>
       <span class="gate-count">Proposed <b>${rel.length + wh.length}</b></span>
@@ -1241,7 +1334,12 @@ function renderMisconceptions(misc, withheld) {
       <span class="gate-count">Withheld <b>${wh.length}</b></span>
     </div>`;
 
-  if (!rel.length) {
+  const statusCode = status ? status.code : '';
+  if (!rel.length && statusCode === 'not_run') {
+    html += `<div class="misc-card"><div class="misc-icon">⛔</div><div><div class="misc-title">Not assessed: the query did not run</div><div class="misc-desc">The database rejected this query, so there is no result to reason about. Fix the error shown on the Feedback tab and submit again.</div></div></div>`;
+  } else if (!rel.length && statusCode === 'incorrect') {
+    html += `<div class="misc-card"><div class="misc-icon">🔎</div><div><div class="misc-title">Not correct yet, but no diagnosis to show</div><div class="misc-desc">Your result differs from the expected one, but the effect that a known misconception would produce did not appear in the evidence. EviSQL names a misconception only when the evidence shows it, so compare your result with the task.</div></div></div>`;
+  } else if (!rel.length) {
     html += `<div class="misc-card misc-none"><div class="misc-icon">✅</div><div><div class="misc-title">No misconceptions detected</div><div class="misc-desc">Your query demonstrates correct SQL understanding.</div></div></div>`;
   } else {
     html += rel.map(m => `
@@ -1430,8 +1528,8 @@ function markProblemComplete(id) {
 }
 
 // ═══ SCHEMA ═══
-async function loadSchema() {
-  const res = await fetch('/api/schema');
+async function loadSchema(problemId) {
+  const res = await fetch('/api/schema' + (problemId ? '?problem_id=' + encodeURIComponent(problemId) : ''));
   const data = await res.json();
   if (data.status !== 'ok') return;
   const tables = data.data;
@@ -1505,6 +1603,10 @@ function switchView(v) {
 }
 // ─── Keyboard shortcut: Ctrl+Enter = Analyze Query ───
 document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && !document.getElementById('pin-modal').hidden) {
+    closePinModal();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
     e.preventDefault();
     runAnalysis();
