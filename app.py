@@ -40,6 +40,7 @@ from backend.student_view import (
     analysis_status, student_problem_view, student_analysis_view, student_edge_view,
 )
 from backend.instructor_auth import LoginThrottle, check_pin, pin_configured
+from backend.release_card import observed_evidence, describe_released, describe_withheld
 from database.init_db import init_main_db, init_edge_dbs, get_connection
 from database.demo_dbs import init_demo_dbs, demo_db_path
 
@@ -245,6 +246,35 @@ def execute():
 #  ROUTES — FULL ANALYSIS PIPELINE
 # ══════════════════════════════════════════════════════════════════════
 
+def with_release_cards(report: dict, comparison: dict, provenance: dict,
+                       edge_results: list, exec_error) -> dict:
+    """
+    Give each released diagnosis its label, evidence and repair direction
+    (talk slide 6), and each withheld proposal its rule ID. The feedback items
+    of the released diagnoses carry the same rule ID and evidence.
+    """
+    observed = observed_evidence(comparison, provenance, edge_results, exec_error)
+    snippets = {i["title"]: i.get("code_snippet")
+                for i in report["items"] if i.get("category") == "LOGIC"}
+    released = describe_released(report["misconceptions"], observed, snippets)
+    by_title = {m["title"]: m for m in released}
+
+    def item_view(item):
+        card = by_title.get(item["title"]) if item.get("category") == "LOGIC" else None
+        if not card:
+            return item
+        label = f"{card['rule_id']} · {item['title']}" if card["rule_id"] else item["title"]
+        body = f"{card['evidence']} {item['body']}" if card["evidence"] else item["body"]
+        return {**item, "title": label, "body": body}
+
+    return {
+        **report,
+        "misconceptions": released,
+        "unsupported_misconceptions": describe_withheld(report["unsupported_misconceptions"]),
+        "items": [item_view(i) for i in report["items"]],
+    }
+
+
 def run_analysis(problem: dict, student_sql: str) -> dict:
     """
     Full analysis pipeline (the instructor's view of it):
@@ -292,6 +322,7 @@ def run_analysis(problem: dict, student_sql: str) -> dict:
         problem_type=problem_type,
         execution_error=exec_error,
     ).to_dict()
+    report = with_release_cards(report, comparison.to_dict(), prov_trace, edge_results, exec_error)
 
     status = analysis_status(
         execution_ok=student_result.success and not student_parse.error,

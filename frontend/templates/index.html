@@ -415,6 +415,13 @@ body:not(.is-instructor) .results-grid{grid-template-columns:1fr !important}
 .pin-error{font-size:.72rem;color:var(--bad);min-height:1em}
 .pin-actions{display:flex;justify-content:flex-end;gap:.5rem}
 #status-wrap + .score-wrap{margin-left:.8rem}
+/* ── Released diagnosis: label, evidence, repair direction (talk slide 6) ── */
+.rule-id{display:inline-block;font-family:var(--mono);font-size:.68rem;font-weight:700;color:#fff;
+  background:var(--accent);border-radius:5px;padding:1px 6px;margin-right:.45rem;vertical-align:1px}
+.misc-evidence{font-size:.86rem;font-weight:600;color:var(--text);line-height:1.5;margin:.35rem 0 .45rem}
+.misc-pattern{margin-top:.5rem;font-size:.74rem;color:var(--text2)}
+.misc-pattern summary{cursor:pointer;color:var(--accent);font-weight:600}
+.misc-pattern-text{margin:.35rem 0;line-height:1.55}
 </style>
 </head>
 <body>
@@ -1346,10 +1353,15 @@ function renderMisconceptions(misc, withheld, status) {
     <div class="misc-card">
       <div class="misc-icon">⚠️</div>
       <div>
-        <div class="misc-title">${esc(m.title)}</div>
+        <div class="misc-title">${ruleChip(m)}${esc(m.title)}</div>
+        ${m.evidence?`<div class="misc-evidence">${esc(m.evidence)}</div>`:''}
+        <div class="misc-fix">💡 ${esc(m.repair || m.fix)}</div>
         <div class="misc-desc">${esc(m.description)}</div>
-        ${m.predicts?`<div class="misc-why"><b>Why you are seeing this:</b> this diagnosis predicts that ${esc(m.predicts)} — and the evidence shows exactly that. It is not reported merely because the query is wrong.</div>`:''}
-        <div class="misc-fix">💡 ${esc(m.fix)}</div>
+        ${m.predicts?`<div class="misc-why"><b>Why this label:</b> it predicts that ${esc(m.predicts)}, and the evidence above shows exactly that. It is not reported merely because the query is wrong.</div>`:''}
+        ${(m.pattern || m.code_snippet)?`<details class="misc-pattern"><summary>Show a pattern</summary>
+          ${m.pattern?`<div class="misc-pattern-text">${esc(m.pattern)}</div>`:''}
+          ${m.code_snippet?`<div class="fb-code">${esc(m.code_snippet)}</div>`:''}
+        </details>`:''}
         ${m.reference?`<div class="fb-ref">📚 ${esc(m.reference)}</div>`:''}
       </div>
     </div>
@@ -1381,7 +1393,7 @@ function renderMisconceptions(misc, withheld, status) {
         <div class="misc-card withheld-card">
           <div class="misc-icon">🔒</div>
           <div>
-            <div class="misc-title">${esc(m.title)}</div>
+            <div class="misc-title">${ruleChip(m)}${esc(m.title)}</div>
             ${m.predicts?`<div class="misc-why"><b>Expected but not observed:</b> ${esc(m.predicts)}.</div>`:''}
           </div>
         </div>`).join('')}
@@ -1390,6 +1402,11 @@ function renderMisconceptions(misc, withheld, status) {
   }
 
   document.getElementById('misc-content').innerHTML = html;
+}
+
+// The rule's ID from paper Table 1 (M1–M10); rules outside the taxonomy have none.
+function ruleChip(m) {
+  return m.rule_id ? `<span class="rule-id">${esc(m.rule_id)}</span>` : '';
 }
 
 function toggleWithheld() {
