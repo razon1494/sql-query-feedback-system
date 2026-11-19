@@ -578,6 +578,7 @@ body:not(.is-instructor) .results-grid{grid-template-columns:1fr !important}
         <button class="btn btn-secondary btn-sm" data-sample="wrong" onclick="loadSample('wrong')">Load Wrong Answer</button>
         <button class="btn btn-secondary btn-sm instructor-only" data-sample="correct" onclick="loadSample('correct')">Load Correct Answer</button>
         <button class="btn btn-secondary btn-sm" data-sample="partial" onclick="loadSample('partial')">Load Partial Answer</button>
+        <button class="btn btn-secondary btn-sm" data-sample="notin" onclick="loadSample('notin')">Load NOT IN Answer</button>
         <button class="btn btn-secondary btn-sm instructor-only" data-sample="alternate"
                 onclick="loadSample('alternate')">Load Alternate-Correct</button>
         <div id="attempt-badge" style="display:none;font-size:.7rem;color:var(--text3);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-family:var(--mono)">Attempt <span id="attempt-num">1</span></div>
@@ -828,7 +829,9 @@ body:not(.is-instructor) .results-grid{grid-template-columns:1fr !important}
     <div class="arch-caption">
       Structure is analysed before execution, so a diagnosis can be proposed even when the data hides the
       error. The five edge-case instances: partial enrolment, full enrolment, empty divisor, single divisor
-      element, empty outer table.
+      element, empty outer table. When a division submission uses NOT IN and the reference does not, a
+      copy of the problem's database with NULL values added to the link table is run as well: there a
+      NOT IN over a subquery that returns NULL fails, an error that stays hidden on NULL-free data.
     </div>
 
     <div class="sec">The ten rules</div>

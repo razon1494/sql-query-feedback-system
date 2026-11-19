@@ -37,8 +37,10 @@ EDGE_SETTINGS = {
     "all_enrolled": "every student took every database course",
     "single_course": "there is only one database course",
     "no_students": "there are no students",
+    "null_link": "the enrolment table holds NULL values",
 }
-EDGE_PREFERENCE = ("partial_match", "empty_courses", "single_course", "all_enrolled", "no_students")
+EDGE_PREFERENCE = ("null_link", "partial_match", "empty_courses", "single_course", "all_enrolled",
+                   "no_students")
 
 # Which observations to name first, by the effect each rule predicts
 # (feedback_generator.MISCONCEPTION_PREDICTS).

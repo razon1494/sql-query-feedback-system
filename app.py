@@ -30,7 +30,10 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from backend.sql_parser import parse_sql, compare_queries
 from backend.query_executor import (
     execute_query, full_edge_case_analysis, compare_results,
-    find_minimal_counterexample,
+    find_minimal_counterexample, MAIN_DB,
+)
+from backend.null_instance import (
+    applies as null_instance_applies, init_null_instances, run_null_instance,
 )
 from backend.provenance import compute_provenance
 from backend.feedback_generator import generate_feedback
@@ -42,7 +45,7 @@ from backend.student_view import (
 from backend.instructor_auth import LoginThrottle, check_pin, pin_configured
 from backend.release_card import observed_evidence, describe_released, describe_withheld
 from database.init_db import init_main_db, init_edge_dbs, get_connection
-from database.demo_dbs import init_demo_dbs, demo_db_path
+from database.demo_dbs import init_demo_dbs, demo_db_path, DEMO_DATABASES
 
 INSTRUCTOR_ROLE = "instructor"
 STUDENT_ROLE = "student"
@@ -95,6 +98,7 @@ def initialize():
         init_main_db()
         init_edge_dbs()
         init_demo_dbs()
+        init_null_instances([MAIN_DB, *(demo_db_path(name) for name in DEMO_DATABASES)])
         print("[INIT] Done.")
     except Exception as e:
         print(f"[INIT] Warning: {e}")
@@ -126,6 +130,26 @@ def problem_db_path(problem: dict):
 
 def uses_edge_cases(problem: dict) -> bool:
     return problem.get("type") in EDGE_CASE_PROBLEM_TYPES
+
+def collect_edge_results(problem: dict, student_sql: str) -> list:
+    """
+    The five constructed databases (division only), plus the NULL-injected
+    copy of the problem's own database when the submission uses NOT IN and
+    the reference does not (paper Sec. 5.3, talk slide 11).
+    """
+    if not uses_edge_cases(problem):
+        return []
+    base_sql = problem["base_query"]
+    try:
+        results = full_edge_case_analysis(base_sql, student_sql)
+    except Exception as e:
+        print(f"[EDGE] {problem['id']}: edge-case analysis failed: {e}")
+        results = []
+    if null_instance_applies(problem["type"], base_sql, student_sql):
+        null_edge = run_null_instance(base_sql, student_sql, problem_db_path(problem) or MAIN_DB)
+        if null_edge:
+            results = [*results, null_edge]
+    return results
 
 def read_student_query(body):
     """The submitted query, or an error message when it is unusable."""
@@ -308,12 +332,7 @@ def run_analysis(problem: dict, student_sql: str) -> dict:
     except Exception as e:
         prov_trace = {"error": str(e), "steps": [], "divergence_points": []}
 
-    edge_results = []
-    if uses_edge_cases(problem):
-        try:
-            edge_results = full_edge_case_analysis(base_sql, student_sql)
-        except Exception as e:
-            print(f"[EDGE] {problem['id']}: edge-case analysis failed: {e}")
+    edge_results = collect_edge_results(problem, student_sql)
 
     try:
         counterexample = find_minimal_counterexample(base_sql, student_sql, db_path=db_path)
@@ -398,9 +417,7 @@ def edge_cases(problem_id):
     if not problem:
         return error("Problem not found", 404)
 
-    if not uses_edge_cases(problem):
-        return success([])
-    results = full_edge_case_analysis(problem["base_query"], student_sql)
+    results = collect_edge_results(problem, student_sql)
     return success(results if is_instructor() else student_edge_view(results))
 
 

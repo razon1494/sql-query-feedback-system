@@ -35,6 +35,9 @@ The system has a **special focus on relational division queries** — the hardes
    *Using IN instead of NOT EXISTS for division*
 5. Select **"Running example: when the data hides the error"** and repeat: the output now matches,
    yet a constructed partial-enrolment database still exposes the error and the diagnosis is released
+6. On the same problem, click **"Load NOT IN Answer"**: it also matches on the course data, but a copy of
+   the database with NULLs in the enrolment table exposes it, and *M3 · NOT IN used where NOT EXISTS is
+   expected* is released
 
 The site opens in the **student view**: the reference query, the proposals the evidence gate
 withheld and the score are not sent to the browser. An instructor signs in with a PIN

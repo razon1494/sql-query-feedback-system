@@ -43,7 +43,7 @@ def test_student_problem_detail_has_no_reference_or_correct_samples(client):
         data = client.get(f"/api/problems/{pid}").get_json()["data"]
         assert "base_query" not in data
         assert "common_mistakes" not in data
-        assert set(data["samples"]) <= {"wrong", "partial"}
+        assert set(data["samples"]) <= {"wrong", "partial", "notin"}
 
 
 @pytest.mark.parametrize("pid", ["ex_every_db_course", "ex_hidden_error", "div_db_courses",
@@ -111,7 +111,7 @@ def test_wrong_pin_is_refused_and_right_pin_unlocks_full_analysis(client):
     assert client.get("/api/session").get_json()["data"]["role"] == "instructor"
     detail = client.get("/api/problems/ex_every_db_course").get_json()["data"]
     assert detail["base_query"] == get_problem("ex_every_db_course")["base_query"]
-    assert set(detail["samples"]) == {"wrong", "correct", "alternate"}
+    assert set(detail["samples"]) == {"wrong", "notin", "correct", "alternate"}
 
     data = analyze(client, "ex_every_db_course", SAMPLE_ANSWERS["ex_every_db_course"]["alternate"])
     assert data["role"] == "instructor"

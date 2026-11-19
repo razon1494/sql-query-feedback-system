@@ -10,7 +10,7 @@ Kinds:
 """
 from backend.demo_problems import RUNNING_EXAMPLE_REFERENCE
 
-STUDENT_SAFE_KINDS = ("wrong", "partial")
+STUDENT_SAFE_KINDS = ("wrong", "partial", "notin")
 
 # Submission A of paper Fig. 1: IN where universal quantification is needed.
 _SUBMISSION_A = """SELECT s.StuID, s.Name
@@ -31,8 +31,20 @@ GROUP BY s.StuID, s.Name
 HAVING COUNT(DISTINCT c.CourseID) = (
     SELECT COUNT(*) FROM Courses WHERE "Group" = 'DB'
 );"""
+# The paper's M3 variant (external/spider/gen_division.py): NOT IN inside NOT IN.
+# On NULL-free data it can agree with the reference; a NULL in the link table
+# empties it (talk slide 11).
+_SUBMISSION_NOT_IN = """SELECT s.StuID, s.Name
+FROM Students s
+WHERE s.StuID NOT IN (
+    SELECT t.StuID FROM Takes t
+    WHERE t.CourseID NOT IN (
+        SELECT c.CourseID FROM Courses c WHERE c."Group" = 'DB'
+    )
+);"""
 _RUNNING_EXAMPLE = {
     "wrong": _SUBMISSION_A,
+    "notin": _SUBMISSION_NOT_IN,
     "correct": RUNNING_EXAMPLE_REFERENCE,
     "alternate": _SUBMISSION_B,
 }
