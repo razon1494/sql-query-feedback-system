@@ -49,6 +49,10 @@ STUDENT_ROLE = "student"
 SESSION_HOURS = 8
 MAX_QUERY_LENGTH = 10_000
 SCHEMA_SAMPLE_ROWS = 20
+# The five constructed edge-case databases model relational division (partial
+# enrolment, empty divisor, ...). As in the paper's evaluation (Sec. 5.3), they
+# are used only for division problems; elsewhere they test nothing meaningful.
+EDGE_CASE_PROBLEM_TYPES = frozenset({"DIVISION"})
 
 
 def _secret_key() -> str:
@@ -119,6 +123,9 @@ def problem_db_path(problem: dict):
     """The problem's own database, or None for the shared main database."""
     name = problem.get("database")
     return demo_db_path(name) if name else None
+
+def uses_edge_cases(problem: dict) -> bool:
+    return problem.get("type") in EDGE_CASE_PROBLEM_TYPES
 
 def read_student_query(body):
     """The submitted query, or an error message when it is unusable."""
@@ -301,10 +308,12 @@ def run_analysis(problem: dict, student_sql: str) -> dict:
     except Exception as e:
         prov_trace = {"error": str(e), "steps": [], "divergence_points": []}
 
-    try:
-        edge_results = full_edge_case_analysis(base_sql, student_sql)
-    except Exception:
-        edge_results = []
+    edge_results = []
+    if uses_edge_cases(problem):
+        try:
+            edge_results = full_edge_case_analysis(base_sql, student_sql)
+        except Exception as e:
+            print(f"[EDGE] {problem['id']}: edge-case analysis failed: {e}")
 
     try:
         counterexample = find_minimal_counterexample(base_sql, student_sql, db_path=db_path)
@@ -349,6 +358,7 @@ def run_analysis(problem: dict, student_sql: str) -> dict:
         "comparison": comparison.to_dict(),
         "provenance": prov_trace,
         "edge_cases": edge_results,
+        "edge_cases_apply": uses_edge_cases(problem),
         "counterexample": counterexample,
         "feedback": report,
     }
@@ -388,6 +398,8 @@ def edge_cases(problem_id):
     if not problem:
         return error("Problem not found", 404)
 
+    if not uses_edge_cases(problem):
+        return success([])
     results = full_edge_case_analysis(problem["base_query"], student_sql)
     return success(results if is_instructor() else student_edge_view(results))
 

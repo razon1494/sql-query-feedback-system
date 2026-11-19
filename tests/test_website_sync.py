@@ -74,6 +74,17 @@ def test_student_edge_cases_keep_counts_but_not_reference_rows(client):
         assert set(edge["base_result"]) == {"row_count"}
 
 
+@pytest.mark.parametrize("pid, applies", [("div_db_courses", True), ("ex_hidden_error", True),
+                                          ("join_cs360", False), ("agg_multi_course", False),
+                                          ("set_no_db", False)])
+def test_edge_case_databases_run_for_division_only(client, pid, applies):
+    data = analyze(client, pid, SAMPLE_ANSWERS[pid]["wrong"])
+    assert data["edge_cases_apply"] is applies
+    assert len(data["edge_cases"]) == (5 if applies else 0)
+    res = client.post(f"/api/edge-cases/{pid}", json={"student_query": SAMPLE_ANSWERS[pid]["wrong"]})
+    assert len(res.get_json()["data"]) == (5 if applies else 0)
+
+
 def test_architecture_page_and_sidebar_follow_the_paper(client):
     html = client.get("/").get_data(as_text=True)
     for phrase in ("Release(m) ⇔ trigger(m) ∧ supports(m)", "kept for the instructor",

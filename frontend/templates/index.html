@@ -667,7 +667,7 @@ body:not(.is-instructor) .results-grid{grid-template-columns:1fr !important}
               <span class="ns-num">5</span>
               <span class="ns-info">
                 <span class="ns-title">⚡ Edge Cases</span>
-                <span class="ns-sub">Robustness tests</span>
+                <span class="ns-sub">Test databases (division)</span>
               </span>
             </button>
             <button onclick="goToTab('misc')" class="nav-step-btn">
@@ -1150,7 +1150,7 @@ function renderAll(d) {
   renderFeedback(d.feedback);
   if (d.parsing) renderAST(d.parsing);                       // instructor view only
   renderProvenance(d.provenance);
-  renderEdgeCases(d.edge_cases);
+  renderEdgeCases(d.edge_cases, d.edge_cases_apply);
   renderMisconceptions(d.feedback.misconceptions, d.feedback.unsupported_misconceptions, d.status);
   // Feedback button preview: the score for instructors, the status for students
   const preview = document.getElementById('ns-score-preview');
@@ -1398,9 +1398,15 @@ function renderProvenance(prov) {
   filterProvenance('all');
 }
 
-function renderEdgeCases(cases) {
+function renderEdgeCases(cases, apply) {
   if (!cases||!cases.length) {
-    document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt">No edge case data.</div></div>`;
+    // The five constructed databases model relational division, so, as in the
+    // paper's evaluation, they run only for division problems.
+    const msg = apply === false
+      ? 'No test databases for this problem type. The five constructed databases model relational division (partial enrolment, empty divisor, and so on), so they are used only for division problems, as in the paper\'s evaluation. This result rests on the course database alone.'
+      : 'No edge case data.';
+    document.getElementById('edge-summary').innerHTML = '';
+    document.getElementById('edge-content').innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="empty-icon">⚡</div><div class="empty-txt" style="max-width:34rem;line-height:1.6">${esc(msg)}</div></div>`;
     return;
   }
   const passed = cases.filter(e=>e.passed).length;

@@ -125,5 +125,6 @@ def student_analysis_view(result: dict) -> dict:
         "comparison": _student_comparison(result["comparison"]),
         "provenance": _student_provenance(result.get("provenance")),
         "edge_cases": student_edge_view(result.get("edge_cases")),
+        "edge_cases_apply": bool(result.get("edge_cases_apply")),
         "feedback": _student_feedback(result["feedback"]),
     }
