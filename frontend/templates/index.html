@@ -297,6 +297,38 @@ tr.match td{background:#f0fdf4}
   text-align:center;min-width:100px;font-family:var(--mono);font-size:.68rem;
   box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .pipe-arrow{color:var(--text3);align-self:center;font-size:.9rem}
+/* Architecture page: the talk's slide 5 diagram and supporting panels */
+.arch-flow{display:flex;align-items:stretch;gap:.45rem;flex-wrap:wrap;margin-bottom:.6rem}
+.arch-box{background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:.7rem .8rem;
+  font-size:.74rem;line-height:1.5;flex:1 1 9.5rem;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.arch-kicker{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text3);margin-bottom:.35rem}
+.arch-item{font-weight:600;color:var(--text);margin-bottom:.3rem}
+.arch-item span,.arch-released span,.arch-withheld span{display:block;font-weight:400;color:var(--text3);font-size:.68rem}
+.arch-text{color:var(--text2)}
+.arch-verb{margin-top:.5rem;font-weight:800;font-size:.7rem;letter-spacing:.05em;text-transform:uppercase}
+.arch-tier1{border-color:#93c5fd}.arch-tier1 .arch-verb{color:var(--accent)}
+.arch-tier2{border-color:#5eead4}.arch-tier2 .arch-verb{color:#0f766e}
+.arch-arrow{align-self:center;color:var(--text3);font-size:1.1rem}
+.arch-outcomes{display:flex;flex-direction:column;gap:.45rem;flex:1 1 8rem}
+.arch-released{border-color:#5eead4;background:#f0fdfa;color:#0f766e;flex:1}
+.arch-withheld{border-color:var(--border2);background:var(--surface2);color:var(--text2);flex:1}
+.arch-rule{font-family:var(--mono);font-size:.78rem;color:var(--text);background:var(--surface2);
+  border:1px solid var(--border);border-radius:8px;padding:.45rem .75rem;margin-bottom:.6rem;text-align:center}
+.arch-notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(13rem,1fr));gap:.5rem;
+  font-size:.72rem;color:var(--text2);line-height:1.5;margin-bottom:1.4rem}
+.arch-stages{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:.45rem;margin-bottom:.5rem}
+@media(max-width:900px){.arch-stages{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:520px){.arch-stages{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.arch-stages div{background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:.55rem .65rem;font-size:.72rem;line-height:1.4;color:var(--text2)}
+.arch-stages b{display:block;color:var(--accent);font-family:var(--mono);margin-bottom:.15rem}
+.arch-caption{font-size:.7rem;color:var(--text3);line-height:1.55;margin-bottom:1.4rem}
+.arch-sides{display:grid;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));gap:.6rem;margin-bottom:1.4rem}
+.arch-side{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.8rem .9rem;
+  font-size:.76rem;line-height:1.6;color:var(--text2)}
+.arch-ours td{background:#f0fdfa;font-weight:600}
+@media(max-width:700px){.arch-arrow{transform:rotate(90deg);flex-basis:100%;text-align:center}}
 
 /* SPINNER / EMPTY */
 .spinner{display:inline-block;width:13px;height:13px;border:2px solid rgba(37,99,235,.2);
@@ -736,54 +768,141 @@ body:not(.is-instructor) .results-grid{grid-template-columns:1fr !important}
   </div>
 </div>
 
-<!-- ABOUT VIEW -->
+<!-- ABOUT VIEW: mirrors the ICWL 2026 paper and talk (slides 5 and 12, backups B2, B4, B5) -->
 <div class="app" id="about-view" style="overflow-y:auto">
   <div class="about-inner">
-    <div style="font-family:var(--display);font-size:1.9rem;font-weight:800;margin-bottom:.4rem;color:var(--text)">
+    <div style="font-family:var(--display);font-size:1.9rem;font-weight:800;margin-bottom:.3rem;color:var(--text)">
       EviSQL
     </div>
-    <div style="color:var(--text2);font-size:.86rem;margin-bottom:1.5rem;line-height:1.7">
-      A research prototype for automated SQL query evaluation &amp; feedback generation.<br>
-      A structural detector <em>proposes</em> a diagnosis; an evidence gate <em>releases</em> it
-      only when execution shows the effect that diagnosis itself predicts.
+    <div style="color:var(--text2);font-size:.9rem;margin-bottom:.35rem;line-height:1.6">
+      SQL feedback a learner can <strong>act on</strong> and an instructor can <strong>verify</strong>.
     </div>
-    <div class="info-box" style="padding:1.05rem;font-size:.8rem;line-height:1.8;margin-bottom:1.25rem;background:#eff4ff;border-color:#bfdbfe">
-      <strong style="font-size:.88rem;display:block;margin-bottom:.4rem">System Overview</strong>
-      Combines <strong>real SQL execution</strong> (SQLite), <strong>AST-based structural comparison</strong>,
-      <strong>provenance tracing</strong> (I-REX / RATest), <strong>edge-case testing</strong> (5 specialized databases),
-      and <strong>misconception detection</strong> to deliver rich, actionable feedback — with special focus on
-      <em>relational division</em>.
+    <div style="color:var(--text3);font-size:.78rem;margin-bottom:1.4rem;line-height:1.6">
+      Rule-based, with no language model: every message traces to a rule an instructor can read and edit.
+      In four words: <em>structure proposes, evidence releases</em>.
     </div>
-    <div class="sec">Pipeline Architecture</div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.35rem;margin-bottom:1.25rem;box-shadow:0 1px 4px rgba(0,0,0,.05)">
-      <div class="pipe-row">
-        <div class="pipe-box" style="border:2px solid var(--accent)"><div style="color:var(--accent);font-weight:700;margin-bottom:.2rem">① Parse</div><div style="color:var(--text3);font-size:.62rem">SQL → AST<br>Validate</div></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-box" style="border:2px solid var(--accent2)"><div style="color:var(--accent2);font-weight:700;margin-bottom:.2rem">② Diff</div><div style="color:var(--text3);font-size:.62rem">AST compare<br>Structure</div></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-box" style="border:2px solid var(--accent4)"><div style="color:var(--accent4);font-weight:700;margin-bottom:.2rem">③ Execute</div><div style="color:var(--text3);font-size:.62rem">Real SQLite<br>Results</div></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-box" style="border:2px solid #7c3aed"><div style="color:#7c3aed;font-weight:700;margin-bottom:.2rem">④ Provenance</div><div style="color:var(--text3);font-size:.62rem">Trace lineage<br>Divergence</div></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-box" style="border:2px solid var(--bad)"><div style="color:var(--bad);font-weight:700;margin-bottom:.2rem">⑤ Edge Cases</div><div style="color:var(--text3);font-size:.62rem">5 test DBs<br>Coverage</div></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-box" style="border:2px solid var(--good)"><div style="color:var(--good);font-weight:700;margin-bottom:.2rem">⑥ Feedback</div><div style="color:var(--text3);font-size:.62rem">Grade + Report<br>Suggest</div></div>
+
+    <div class="sec">How a diagnosis is decided</div>
+    <div class="arch-flow">
+      <div class="arch-box arch-input">
+        <div class="arch-kicker">Inputs</div>
+        <div class="arch-item">Student's query</div>
+        <div class="arch-item">Reference query and database<span>from the instructor</span></div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">→</div>
+      <div class="arch-box arch-tier1">
+        <div class="arch-kicker">Tier 1 · Structural rules</div>
+        <div class="arch-text">Ten error types from studies of SQL learning. Compare the query with the
+          reference. Run nothing.</div>
+        <div class="arch-verb">Propose a diagnosis</div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">→</div>
+      <div class="arch-box arch-tier2">
+        <div class="arch-kicker">Tier 2 · Evidence gate</div>
+        <div class="arch-text">Runs both queries. Do the results show the effect this diagnosis predicts?</div>
+        <div class="arch-verb">Release or withhold</div>
+      </div>
+      <div class="arch-arrow" aria-hidden="true">→</div>
+      <div class="arch-outcomes">
+        <div class="arch-box arch-released"><strong>Released</strong><span>to the student</span></div>
+        <div class="arch-box arch-withheld"><strong>Withheld</strong><span>kept for the instructor</span></div>
       </div>
     </div>
-    <div class="sec">vs. Related Work</div>
-    <div class="tbl-wrap" style="margin-bottom:1.25rem">
+    <div class="arch-rule">Release(m) ⇔ trigger(m) ∧ supports(m)</div>
+    <div class="arch-notes">
+      <div><strong>Per proposal.</strong> Decided for each diagnosis, not per query.</div>
+      <div><strong>Only withholds.</strong> The gate never adds a diagnosis.</div>
+      <div><strong>Edge-case databases.</strong> Built for relational division, to expose errors the
+        instructor's data may hide.</div>
+    </div>
+
+    <div class="sec">Six stages</div>
+    <div class="arch-stages">
+      <div><b>1</b>Parse the submission</div>
+      <div><b>2</b>Structural diff against the reference</div>
+      <div><b>3</b>Execute both, compare results</div>
+      <div><b>4</b>Provenance trace (division)</div>
+      <div><b>5</b>Re-run on 5 edge-case instances</div>
+      <div><b>6</b>Emit status, label, evidence, repair</div>
+    </div>
+    <div class="arch-caption">
+      Structure is analysed before execution, so a diagnosis can be proposed even when the data hides the
+      error. The five edge-case instances: partial enrolment, full enrolment, empty divisor, single divisor
+      element, empty outer table.
+    </div>
+
+    <div class="sec">The ten rules</div>
+    <div class="tbl-wrap" style="margin-bottom:.45rem">
       <table>
-        <thead><tr><th>Feature</th><th>RATest '19</th><th>I-REX '20</th><th>CaJaDE '22</th><th>This System</th></tr></thead>
+        <thead><tr><th>ID</th><th>Trigger (reference vs. submission)</th><th>Class</th><th>Evidence required to release</th></tr></thead>
         <tbody>
-          <tr><td>Real SQL execution</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td></tr>
-          <tr><td>Small counterexamples</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--good);font-weight:700">✓</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
-          <tr><td>Division query focus</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
-          <tr><td>Edge case library</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
-          <tr><td>Graded feedback</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
-          <tr><td>Misconception detection</td><td>—</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td></tr>
-          <tr><td>Context-augmented prov.</td><td>—</td><td>—</td><td style="color:var(--good);font-weight:700">✓</td><td style="color:var(--warn);font-weight:700">Planned</td></tr>
+          <tr><td><b>M1</b></td><td>WHERE present vs. absent</td><td>Struct.</td><td>Rows the reference excludes; any divergence where the query aggregates</td></tr>
+          <tr><td><b>M2</b></td><td>EXISTS vs. IN</td><td>Sem.</td><td>Rows the reference excludes</td></tr>
+          <tr><td><b>M3</b></td><td>NOT EXISTS vs. NOT IN</td><td>Sem.</td><td>NULL-injected instance fails; else rows lost; else divergence, where no such instance exists †</td></tr>
+          <tr><td><b>M4</b></td><td>Join types differ</td><td>Struct.</td><td>Rows the reference excludes</td></tr>
+          <tr><td><b>M5</b></td><td>Fewer joined tables, or no join condition</td><td>Struct.</td><td>Rows the reference excludes</td></tr>
+          <tr><td><b>M6</b></td><td>Aggregate without GROUP BY</td><td>Struct.</td><td>Engine rejects; or at most one group where the reference yields many</td></tr>
+          <tr><td><b>M7</b></td><td>Aggregate moved into WHERE</td><td>Struct.</td><td>Engine rejects the query</td></tr>
+          <tr><td><b>M8</b></td><td>Division, submission tests IN</td><td>Sem.</td><td>Provenance names a divisor element missing from a returned row; else rows the reference excludes</td></tr>
+          <tr><td><b>M9</b></td><td>NOT EXISTS lacking a correlated reference</td><td>Sem.</td><td>Empty result, or wholesale admission, or engine rejection</td></tr>
+          <tr><td><b>M10</b></td><td>Set operator differs or absent</td><td>Sem.</td><td>Any divergence; direction not predicted †</td></tr>
         </tbody>
       </table>
+    </div>
+    <div class="arch-caption">
+      † Falls back to bare divergence (37 of 546 releases, all M10). Struct. = detectable from the syntax tree
+      alone; Sem. = needs result evidence too. A NULL-equality guard and shape triggers, such as a division
+      submission that uses neither IN nor NOT EXISTS, sit outside the taxonomy.
+    </div>
+
+    <div class="sec">What each side gets</div>
+    <div class="arch-sides">
+      <div class="arch-side">
+        <div class="arch-kicker">The learner</div>
+        <div>A correctness status and, for each released diagnosis, its <b>label</b>, the <b>evidence</b>
+          that released it, and a <b>repair direction</b>. Never the reference query.</div>
+      </div>
+      <div class="arch-side">
+        <div class="arch-kicker">The instructor (PIN sign-in)</div>
+        <div>The reference query, <b>which rule fired</b>, <b>what evidence released it</b>, and <b>what was
+          withheld</b>. Also a numeric score whose weights are unvalidated prototype defaults.</div>
+      </div>
+    </div>
+
+    <div class="sec">How it relates to earlier systems</div>
+    <div class="tbl-wrap" style="margin-bottom:1.25rem">
+      <table>
+        <thead><tr><th>Approach</th><th>Example</th><th>What it gives the student</th><th>What it leaves open</th></tr></thead>
+        <tbody>
+          <tr><td>Output comparison</td><td>SQLator</td><td>Right or wrong from the result rows; works on any schema</td><td>No reason why; passes wrong queries when no discriminating row exists</td></tr>
+          <tr><td>Structure vs. a model solution</td><td>SQL-Tutor; Kleiner and Heine</td><td>Catches errors without a discriminating row</td><td>Steers correct alternative solutions toward the model's construct</td></tr>
+          <tr><td>Counterexamples</td><td>RATest</td><td>The smallest database on which the two queries disagree</td><td>Needs a disagreement to exist; does not name the idea</td></tr>
+          <tr><td>Provable hints</td><td>Qr-Hint</td><td>Hints that provably lead to a correct query</td><td>A route to a repair, not a named diagnosis with its firing condition</td></tr>
+          <tr><td>Generated explanations</td><td>GPT-4 (Azaiz et al.)</td><td>Fluent explanations with broad coverage</td><td>No inspectable firing condition; contradictory verdicts observed</td></tr>
+          <tr class="arch-ours"><td>Evidence-gated rules</td><td>EviSQL (this work)</td><td>A literature-grounded label, its evidence and a repair direction</td><td>Ten rules, one dialect; silent where the data cannot show the error</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="sec">Evaluation and scope</div>
+    <div class="info-box" style="padding:.9rem 1.05rem;font-size:.78rem;line-height:1.75;margin-bottom:1.25rem">
+      Tested on Spider databases the rules were never tuned on, with generated test cases.
+      Structure alone flagged 42 of 357 correct join rewrites and all 53 correct counting solutions;
+      the gate released none of those flags. Attribution precision rose from 93.5% (545 of 583) when every
+      proposal is released on divergence to 99.8% (545 of 546) with the gate. The cost: 201 generated
+      mutations that return exactly the reference rows are withheld. Mean response time is 7.7 ms.<br>
+      <strong>Scope.</strong> This is a technical evaluation on generated cases, not real student work. No
+      student or instructor study has been run yet; the next step is instructors rating the feedback on
+      authentic submissions.
+    </div>
+
+    <div class="sec">Paper and code</div>
+    <div class="info-box" style="padding:.9rem 1.05rem;font-size:.78rem;line-height:1.75;margin-bottom:2.5rem">
+      M. A. Rahman and H. M. Jamil. <em>Auditable SQL Feedback Through Evidence-Gated Misconception
+      Diagnosis.</em> ICWL 2026.<br>
+      Code: <a href="https://github.com/razon1494/sql-query-feedback-system" target="_blank" rel="noopener">github.com/razon1494/sql-query-feedback-system</a>
+      · the paper's version is tag
+      <a href="https://github.com/razon1494/sql-query-feedback-system/tree/icwl2026" target="_blank" rel="noopener"><code>icwl2026</code></a>.
     </div>
   </div>
 </div>
@@ -913,18 +1032,19 @@ function renderSidebar() {
         <strong>Courses</strong>(CourseID, Title, Credits, Group)<br>
         <strong>Takes</strong>(StuID, CourseID, Grade)<br>
         <strong>Instructors</strong>(InstID, Name, Dept)<br>
-        <strong>Teaches</strong>(InstID, CourseID)
+        <strong>Teaches</strong>(InstID, CourseID)<br>
+        <span style="color:var(--text3)">The running-example problems use their own small database;
+        the Schema tab shows the selected problem's data.</span>
       </div>
     </div>
     <div class="divider"></div>
     <div class="sb-section">
-      <div class="sb-label">Reference Papers</div>
-      <div class="info-box" style="font-size:.65rem">
-        ① I-REX (VLDB 2020)<br>
-        ② RATest (SIGMOD 2019)<br>
-        ③ CaJaDE (VLDB 2022)<br>
-        ④ Conditional Instances (SIGMOD 2022)<br>
-        ⑤ DB Theory in Education (ICDT 2024)
+      <div class="sb-label">Paper</div>
+      <div class="info-box" style="font-size:.65rem;line-height:1.6">
+        Rahman and Jamil, <em>Auditable SQL Feedback Through Evidence-Gated Misconception Diagnosis</em>,
+        ICWL 2026.<br>
+        <a href="https://github.com/razon1494/sql-query-feedback-system/tree/icwl2026" target="_blank" rel="noopener">Code at tag icwl2026</a>
+        · <a href="#" onclick="switchView('about');return false">How EviSQL decides</a>
       </div>
     </div>
   `;

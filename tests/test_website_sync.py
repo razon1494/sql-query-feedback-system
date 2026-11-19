@@ -74,6 +74,16 @@ def test_student_edge_cases_keep_counts_but_not_reference_rows(client):
         assert set(edge["base_result"]) == {"row_count"}
 
 
+def test_architecture_page_and_sidebar_follow_the_paper(client):
+    html = client.get("/").get_data(as_text=True)
+    for phrase in ("Release(m) ⇔ trigger(m) ∧ supports(m)", "kept for the instructor",
+                   "SQLator", "Qr-Hint", "Evidence-gated rules", "37 of 546",
+                   "No\n      student or instructor study", "tree/icwl2026"):
+        assert phrase in html, phrase
+    for stale in ("CaJaDE", "Graded feedback", "Context-augmented", "Reference Papers"):
+        assert stale not in html, stale
+
+
 def test_page_source_holds_no_sample_answers(client):
     html = client.get("/").get_data(as_text=True)
     assert "sampleAnswers" not in html
